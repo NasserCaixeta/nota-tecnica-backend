@@ -65,6 +65,24 @@ Healthchecks:
 - `GET /health`
 - `GET /api/v1/health`
 
+## Initial API Surface
+
+Public:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/workshops`
+- `GET /api/v1/workshops/{workshop_id}`
+
+Authenticated:
+
+- `GET /api/v1/users/me`
+- `POST /api/v1/vehicles`
+- `GET /api/v1/vehicles`
+- `GET /api/v1/vehicles/{vehicle_id}`
+- `POST /api/v1/workshops`
+- `GET /api/v1/workshops/me`
+
 ## Verification
 
 Run tests:

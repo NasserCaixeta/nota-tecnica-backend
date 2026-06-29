@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     r2_bucket_name: str = Field(default="", alias="R2_BUCKET_NAME")
     r2_endpoint_url: str = Field(default="", alias="R2_ENDPOINT_URL")
 
+    jwt_secret_key: str = Field(
+        default="change-me-in-production-use-32-bytes-min",
+        alias="JWT_SECRET_KEY",
+    )
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=60, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+
 
 @lru_cache
 def get_settings() -> Settings:

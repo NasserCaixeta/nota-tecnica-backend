@@ -21,6 +21,9 @@ SETTINGS_ENV_VARS = (
     "R2_SECRET_ACCESS_KEY",
     "R2_BUCKET_NAME",
     "R2_ENDPOINT_URL",
+    "JWT_SECRET_KEY",
+    "JWT_ALGORITHM",
+    "ACCESS_TOKEN_EXPIRE_MINUTES",
 )
 
 
@@ -72,6 +75,16 @@ def test_settings_reads_environment_values(monkeypatch: pytest.MonkeyPatch) -> N
         settings.database_url == "postgresql+asyncpg://env_user:env_password@env-host:5432/env_db"
     )
     assert settings.redis_url == "redis://env-redis:6379/1"
+
+
+def test_jwt_settings_defaults_are_usable(monkeypatch: pytest.MonkeyPatch) -> None:
+    clear_settings_env(monkeypatch)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.jwt_secret_key == "change-me-in-production-use-32-bytes-min"
+    assert settings.jwt_algorithm == "HS256"
+    assert settings.access_token_expire_minutes == 60
 
 
 def test_get_settings_returns_cached_instance(
