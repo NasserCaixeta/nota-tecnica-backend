@@ -15,6 +15,7 @@ from app.modules.vehicles.schemas import VehicleCreate, VehicleRead
 def build_vehicle_read(vehicle: Vehicle, link: VehicleUser) -> VehicleRead:
     return VehicleRead(
         id=vehicle.id,
+        vehicle_link_id=link.id,
         plate=vehicle.plate,
         brand=vehicle.brand,
         model=vehicle.model,
@@ -28,6 +29,7 @@ def build_vehicle_read(vehicle: Vehicle, link: VehicleUser) -> VehicleRead:
         transmission=vehicle.transmission,
         relationship_type=link.relationship_type,
         verification_status=link.verification_status,
+        verification_rejection_reason=link.verification_rejection_reason,
         created_at=vehicle.created_at,
         updated_at=vehicle.updated_at,
     )

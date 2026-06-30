@@ -73,6 +73,8 @@ Public:
 - `POST /api/v1/auth/login`
 - `GET /api/v1/workshops`
 - `GET /api/v1/workshops/{workshop_id}`
+- `GET /api/v1/public/vehicles/{plate}/history-preview`
+- `GET /api/v1/public/workshops/ranking`
 
 Authenticated:
 
@@ -82,6 +84,24 @@ Authenticated:
 - `GET /api/v1/vehicles/{vehicle_id}`
 - `POST /api/v1/workshops`
 - `GET /api/v1/workshops/me`
+
+Maintenance:
+
+- `POST /api/v1/vehicles/{vehicle_id}/maintenance-records`
+- `GET /api/v1/vehicles/{vehicle_id}/maintenance-records`
+- `GET /api/v1/maintenance-records/{record_id}`
+- `PATCH /api/v1/maintenance-records/{record_id}`
+
+Documents:
+
+- `POST /api/v1/vehicles/{vehicle_id}/documents`
+- `GET /api/v1/vehicles/{vehicle_id}/documents`
+- `GET /api/v1/documents/{document_id}`
+
+Admin:
+
+- `PATCH /api/v1/admin/vehicle-links/{vehicle_link_id}/verification`
+- `PATCH /api/v1/admin/documents/{document_id}/review`
 
 ## Verification
 
@@ -105,4 +125,4 @@ uv run ruff format .
 
 ## Current Scope
 
-This repository currently contains the backend skeleton only. Auth, users, vehicles, maintenance records, document uploads, ranking, payments, admin workflows, and real background jobs are intentionally deferred.
+This repository currently contains the backend MVP foundation. Auth, users, vehicles, workshops, maintenance records, document metadata, manual validation, public history preview, and an initial workshop ranking are implemented. Real file upload/storage, OCR, payments, admin UI, background jobs, and advanced ranking are deferred.

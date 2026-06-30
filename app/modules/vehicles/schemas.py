@@ -28,6 +28,7 @@ class VehicleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    vehicle_link_id: int
     plate: str
     brand: str
     model: str
@@ -41,5 +42,6 @@ class VehicleRead(BaseModel):
     transmission: str
     relationship_type: VehicleRelationshipType
     verification_status: VerificationStatus
+    verification_rejection_reason: str | None
     created_at: datetime
     updated_at: datetime
