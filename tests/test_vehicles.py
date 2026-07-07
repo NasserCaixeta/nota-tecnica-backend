@@ -66,7 +66,7 @@ def test_get_vehicle_requires_link(client: TestClient) -> None:
     created = client.post("/api/v1/vehicles", json=vehicle_payload(), headers=headers)
     vehicle_id = created.json()["id"]
 
-    register_user(client, email="other@example.com", cpf="11122233344")
+    register_user(client, email="other@example.com", cpf="39053344705")
     other_token = login(client, email="other@example.com")
     response = client.get(
         f"/api/v1/vehicles/{vehicle_id}",
@@ -116,3 +116,13 @@ def test_duplicate_renavam_returns_conflict(client: TestClient) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Vehicle Renavam already registered"
+
+
+def test_create_vehicle_rejects_invalid_plate_format(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/vehicles",
+        json=vehicle_payload(plate="ABC12D3"),
+        headers=auth_headers(client),
+    )
+
+    assert response.status_code == 422

@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     r2_secret_access_key: str = Field(default="", alias="R2_SECRET_ACCESS_KEY")
     r2_bucket_name: str = Field(default="", alias="R2_BUCKET_NAME")
     r2_endpoint_url: str = Field(default="", alias="R2_ENDPOINT_URL")
+    document_upload_url_expires_seconds: int = Field(
+        default=900,
+        alias="DOCUMENT_UPLOAD_URL_EXPIRES_SECONDS",
+    )
 
     jwt_secret_key: str = Field(
         default="change-me-in-production-use-32-bytes-min",

@@ -2,12 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.validators import validate_cnpj
 from app.modules.vehicles.models import VerificationStatus
 from app.modules.workshops.models import WorkshopSource, WorkshopUserRole
-
-
-def normalize_digits(value: str) -> str:
-    return "".join(character for character in value if character.isdigit())
 
 
 class WorkshopCreate(BaseModel):
@@ -29,10 +26,7 @@ class WorkshopCreate(BaseModel):
     @field_validator("cnpj")
     @classmethod
     def normalize_cnpj(cls, value: str) -> str:
-        normalized = normalize_digits(value)
-        if len(normalized) != 14:
-            raise ValueError("CNPJ must contain 14 digits")
-        return normalized
+        return validate_cnpj(value)
 
     @field_validator("email")
     @classmethod

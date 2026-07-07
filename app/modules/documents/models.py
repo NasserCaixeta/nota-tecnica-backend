@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -28,6 +28,20 @@ class DocumentReviewStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class DocumentUploadStatus(StrEnum):
+    PENDING = "pending"
+    UPLOADED = "uploaded"
+    FAILED = "failed"
+
+
+class DocumentProcessingStatus(StrEnum):
+    NOT_REQUESTED = "not_requested"
+    PENDING = "pending"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    FAILED = "failed"
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -50,6 +64,17 @@ class Document(Base):
         Enum(DocumentReviewStatus, native_enum=False),
         nullable=False,
     )
+    upload_status: Mapped[DocumentUploadStatus] = mapped_column(
+        Enum(DocumentUploadStatus, native_enum=False),
+        nullable=False,
+    )
+    processing_status: Mapped[DocumentProcessingStatus] = mapped_column(
+        Enum(DocumentProcessingStatus, native_enum=False),
+        nullable=False,
+    )
+    original_file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    uploaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

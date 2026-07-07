@@ -1,6 +1,11 @@
 from app.core.config import Settings
 from app.integrations.queue.celery_app import create_celery_app
-from app.integrations.storage.r2 import create_r2_config
+from app.integrations.storage.r2 import (
+    R2ConfigurationError,
+    build_document_storage_key,
+    create_r2_config,
+    create_storage_client,
+)
 
 
 def test_r2_config_can_be_created_from_settings() -> None:
@@ -30,3 +35,28 @@ def test_celery_app_uses_configured_redis_url() -> None:
 
     assert celery_app.conf.broker_url == "redis://redis.example:6379/3"
     assert celery_app.conf.result_backend == "redis://redis.example:6379/3"
+
+
+def test_document_storage_key_is_backend_generated() -> None:
+    key = build_document_storage_key("ABC1D23", "Minha Nota Fiscal.pdf")
+
+    assert key.startswith("vehicles/ABC1D23/documents/")
+    assert key.endswith("-minha-nota-fiscal.pdf")
+
+
+def test_storage_client_requires_r2_config() -> None:
+    settings = Settings(
+        _env_file=None,
+        R2_ACCOUNT_ID="",
+        R2_ACCESS_KEY_ID="",
+        R2_SECRET_ACCESS_KEY="",
+        R2_BUCKET_NAME="",
+        R2_ENDPOINT_URL="",
+    )
+
+    try:
+        create_storage_client(settings)
+    except R2ConfigurationError as exc:
+        assert "R2 configuration is incomplete" in str(exc)
+    else:
+        raise AssertionError("Expected R2ConfigurationError")

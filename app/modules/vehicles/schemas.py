@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validators import validate_brazilian_plate
 from app.modules.vehicles.models import VehicleRelationshipType, VerificationStatus
 
 
@@ -21,7 +22,7 @@ class VehicleCreate(BaseModel):
     @field_validator("plate")
     @classmethod
     def normalize_plate(cls, value: str) -> str:
-        return "".join(character for character in value if character.isalnum()).upper()
+        return validate_brazilian_plate(value)
 
 
 class VehicleRead(BaseModel):

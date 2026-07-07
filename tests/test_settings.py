@@ -21,6 +21,7 @@ SETTINGS_ENV_VARS = (
     "R2_SECRET_ACCESS_KEY",
     "R2_BUCKET_NAME",
     "R2_ENDPOINT_URL",
+    "DOCUMENT_UPLOAD_URL_EXPIRES_SECONDS",
     "JWT_SECRET_KEY",
     "JWT_ALGORITHM",
     "ACCESS_TOKEN_EXPIRE_MINUTES",
@@ -85,6 +86,14 @@ def test_jwt_settings_defaults_are_usable(monkeypatch: pytest.MonkeyPatch) -> No
     assert settings.jwt_secret_key == "change-me-in-production-use-32-bytes-min"
     assert settings.jwt_algorithm == "HS256"
     assert settings.access_token_expire_minutes == 60
+
+
+def test_document_upload_url_expiration_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    clear_settings_env(monkeypatch)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.document_upload_url_expires_seconds == 900
 
 
 def test_get_settings_returns_cached_instance(

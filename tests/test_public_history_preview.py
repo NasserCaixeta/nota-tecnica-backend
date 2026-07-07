@@ -43,3 +43,12 @@ def test_preview_returns_only_safe_aggregates(client: TestClient) -> None:
     assert "documents" not in data
     assert "storage_key" not in data
     assert "description" not in data
+    assert "upload_status" not in data
+    assert "processing_status" not in data
+    assert "uploaded_at" not in data
+
+
+def test_invalid_preview_plate_returns_validation_error(client: TestClient) -> None:
+    response = client.get("/api/v1/public/vehicles/ABC12D3/history-preview")
+
+    assert response.status_code == 422

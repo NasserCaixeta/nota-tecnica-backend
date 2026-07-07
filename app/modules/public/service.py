@@ -1,13 +1,21 @@
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.validators import validate_brazilian_plate
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceStatus
 from app.modules.public.schemas import CompletenessScore, VehicleHistoryPreview
 from app.modules.vehicles.models import Vehicle
 
 
 def normalize_plate(value: str) -> str:
-    return "".join(character for character in value if character.isalnum()).upper()
+    try:
+        return validate_brazilian_plate(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
 
 
 def score_for_count(count: int) -> CompletenessScore:

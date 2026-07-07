@@ -15,7 +15,7 @@ async def create_admin_user(db_session: AsyncSession) -> None:
         full_name="Admin User",
         email="admin@example.com",
         password_hash=hash_password("strong-password"),
-        cpf="99988877766",
+        cpf="93541134780",
         phone="+55 11 98888-7766",
         birth_date=date(1985, 1, 1),
         profile_type=UserProfileType.ADMIN,
@@ -76,3 +76,5 @@ async def test_admin_can_reject_document(
     assert response.status_code == 200, response.text
     assert response.json()["review_status"] == "rejected"
     assert response.json()["rejection_reason"] == "Unreadable document"
+    assert response.json()["upload_status"] == "uploaded"
+    assert response.json()["processing_status"] == "not_requested"

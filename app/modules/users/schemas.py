@@ -2,11 +2,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.validators import validate_cpf
 from app.modules.users.models import UserProfileType
-
-
-def normalize_digits(value: str) -> str:
-    return "".join(character for character in value if character.isdigit())
 
 
 class UserCreate(BaseModel):
@@ -33,10 +30,7 @@ class UserCreate(BaseModel):
     @field_validator("cpf")
     @classmethod
     def normalize_cpf(cls, value: str) -> str:
-        normalized = normalize_digits(value)
-        if len(normalized) != 11:
-            raise ValueError("CPF must contain 11 digits")
-        return normalized
+        return validate_cpf(value)
 
     @field_validator("state")
     @classmethod

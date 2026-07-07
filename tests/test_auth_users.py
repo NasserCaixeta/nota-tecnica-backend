@@ -9,7 +9,7 @@ from app.modules.users.models import User, UserProfileType
 def user_payload(
     *,
     email: str = "driver@example.com",
-    cpf: str = "123.456.789-01",
+    cpf: str = "529.982.247-25",
     profile_type: str = "customer",
 ) -> dict[str, object]:
     return {
@@ -50,7 +50,7 @@ def test_register_customer_returns_user_without_password(client: TestClient) -> 
     data = register_user(client)
 
     assert data["email"] == "driver@example.com"
-    assert data["cpf"] == "12345678901"
+    assert data["cpf"] == "52998224725"
     assert data["profile_type"] == "customer"
     assert data["state"] == "SP"
     assert "password" not in data
@@ -61,7 +61,7 @@ def test_register_workshop_owner(client: TestClient) -> None:
     data = register_user(
         client,
         email="owner@example.com",
-        cpf="987.654.321-00",
+        cpf="390.533.447-05",
         profile_type="workshop_owner",
     )
 
@@ -80,7 +80,7 @@ def test_register_duplicate_email_returns_conflict(client: TestClient) -> None:
 
     response = client.post(
         "/api/v1/auth/register",
-        json=user_payload(cpf="22233344455"),
+        json=user_payload(cpf="39053344705"),
     )
 
     assert response.status_code == 409
@@ -97,6 +97,12 @@ def test_register_duplicate_cpf_returns_conflict(client: TestClient) -> None:
 
     assert response.status_code == 409
     assert response.json()["detail"] == "CPF already registered"
+
+
+def test_register_rejects_invalid_cpf(client: TestClient) -> None:
+    response = client.post("/api/v1/auth/register", json=user_payload(cpf="12345678901"))
+
+    assert response.status_code == 422
 
 
 async def test_password_is_hashed(db_session: AsyncSession, client: TestClient) -> None:

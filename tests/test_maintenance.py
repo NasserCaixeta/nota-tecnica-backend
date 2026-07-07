@@ -8,7 +8,7 @@ def auth_headers(
     client: TestClient,
     *,
     email: str = "driver@example.com",
-    cpf: str = "12345678901",
+    cpf: str = "52998224725",
 ) -> dict[str, str]:
     register_user(client, email=email, cpf=cpf)
     token = login(client, email=email)
@@ -64,7 +64,7 @@ def test_linked_user_can_create_maintenance_record(client: TestClient) -> None:
 def test_unlinked_user_cannot_create_maintenance_record(client: TestClient) -> None:
     owner_headers = auth_headers(client)
     vehicle_id = create_vehicle(client, owner_headers)
-    other_headers = auth_headers(client, email="other@example.com", cpf="11122233344")
+    other_headers = auth_headers(client, email="other@example.com", cpf="39053344705")
 
     response = client.post(
         f"/api/v1/vehicles/{vehicle_id}/maintenance-records",
