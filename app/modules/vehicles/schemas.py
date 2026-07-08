@@ -3,7 +3,11 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.validators import validate_brazilian_plate
-from app.modules.vehicles.models import VehicleRelationshipType, VerificationStatus
+from app.modules.vehicles.models import (
+    GarageValidationStatus,
+    VehicleRelationshipType,
+    VerificationStatus,
+)
 
 
 class VehicleCreate(BaseModel):
@@ -44,5 +48,10 @@ class VehicleRead(BaseModel):
     relationship_type: VehicleRelationshipType
     verification_status: VerificationStatus
     verification_rejection_reason: str | None
+    garage_status: GarageValidationStatus
+    relationship_note: str | None
+    review_attempts: int
+    submitted_for_review_at: datetime | None
+    reviewed_at: datetime | None
     created_at: datetime
     updated_at: datetime

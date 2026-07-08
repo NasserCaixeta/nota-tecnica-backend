@@ -7,6 +7,7 @@ from app.modules.documents.models import (
     DocumentReviewStatus,
     DocumentType,
     DocumentUploadStatus,
+    ValidationDocumentType,
 )
 
 
@@ -29,6 +30,7 @@ ALLOWED_DOCUMENT_CONTENT_TYPES = {
 class DocumentUploadIntentCreate(BaseModel):
     maintenance_record_id: int | None = None
     document_type: DocumentType
+    validation_document_type: ValidationDocumentType | None = None
     file_name: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=120)
     file_size_bytes: int | None = Field(default=None, ge=0)
@@ -49,7 +51,9 @@ class DocumentRead(BaseModel):
     owner_user_id: int
     vehicle_id: int
     maintenance_record_id: int | None
+    vehicle_link_id: int | None
     document_type: DocumentType
+    validation_document_type: ValidationDocumentType | None
     file_name: str
     content_type: str
     storage_key: str

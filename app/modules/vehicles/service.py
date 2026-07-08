@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.users.models import User
 from app.modules.vehicles.models import (
+    GarageValidationStatus,
     Vehicle,
     VehicleRelationshipType,
     VehicleUser,
@@ -30,6 +31,11 @@ def build_vehicle_read(vehicle: Vehicle, link: VehicleUser) -> VehicleRead:
         relationship_type=link.relationship_type,
         verification_status=link.verification_status,
         verification_rejection_reason=link.verification_rejection_reason,
+        garage_status=link.garage_status,
+        relationship_note=link.relationship_note,
+        review_attempts=link.review_attempts,
+        submitted_for_review_at=link.submitted_for_review_at,
+        reviewed_at=link.reviewed_at,
         created_at=vehicle.created_at,
         updated_at=vehicle.updated_at,
     )
@@ -74,6 +80,8 @@ async def create_vehicle_for_user(
         user_id=user.id,
         relationship_type=VehicleRelationshipType.OWNER,
         verification_status=VerificationStatus.PENDING,
+        garage_status=GarageValidationStatus.PENDING_DOCUMENTS,
+        review_attempts=0,
     )
     session.add(link)
     await session.commit()

@@ -21,6 +21,7 @@ from app.modules.documents.schemas import (
 from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.maintenance.service import ensure_user_vehicle_link
 from app.modules.users.models import User
+from app.modules.vehicles.models import GarageValidationStatus, Vehicle, VehicleUser
 
 
 async def ensure_maintenance_record_belongs_to_vehicle(
@@ -98,6 +99,67 @@ async def create_document_upload_intent(
         vehicle_id=vehicle_id,
         maintenance_record_id=payload.maintenance_record_id,
         document_type=payload.document_type,
+        file_name=payload.file_name,
+        original_file_name=payload.file_name,
+        content_type=payload.content_type,
+        storage_key=storage_key,
+        file_size_bytes=payload.file_size_bytes,
+        upload_status=DocumentUploadStatus.PENDING,
+        processing_status=DocumentProcessingStatus.NOT_REQUESTED,
+        review_status=DocumentReviewStatus.PENDING,
+    )
+    session.add(document)
+    await session.commit()
+    await session.refresh(document)
+    presigned_upload = storage_client.create_presigned_upload_url(
+        storage_key=storage_key,
+        content_type=payload.content_type,
+        expires_seconds=get_settings().document_upload_url_expires_seconds,
+    )
+    return DocumentUploadIntentRead(
+        document=document,
+        upload_url=presigned_upload.upload_url,
+        storage_key=storage_key,
+        required_headers=presigned_upload.required_headers,
+    )
+
+
+async def create_vehicle_link_document_upload_intent(
+    session: AsyncSession,
+    vehicle_link_id: int,
+    payload: DocumentUploadIntentCreate,
+    user: User,
+    storage_client: StorageClient,
+) -> DocumentUploadIntentRead:
+    result = await session.execute(
+        select(Vehicle, VehicleUser)
+        .join(VehicleUser, VehicleUser.vehicle_id == Vehicle.id)
+        .where(VehicleUser.id == vehicle_link_id, VehicleUser.user_id == user.id)
+    )
+    row = result.one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle link not found")
+    vehicle, link = row
+    if link.garage_status == GarageValidationStatus.PAYMENT_REQUIRED:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Payment required")
+    if payload.validation_document_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Validation document type is required",
+        )
+    await ensure_maintenance_record_belongs_to_vehicle(
+        session,
+        vehicle.id,
+        payload.maintenance_record_id,
+    )
+    storage_key = build_document_storage_key(vehicle.plate, payload.file_name)
+    document = Document(
+        owner_user_id=user.id,
+        vehicle_id=vehicle.id,
+        vehicle_link_id=link.id,
+        maintenance_record_id=payload.maintenance_record_id,
+        document_type=payload.document_type,
+        validation_document_type=payload.validation_document_type,
         file_name=payload.file_name,
         original_file_name=payload.file_name,
         content_type=payload.content_type,

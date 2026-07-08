@@ -48,6 +48,8 @@ def test_create_vehicle_links_to_current_user(client: TestClient) -> None:
     assert data["plate"] == "ABC1D23"
     assert data["relationship_type"] == "owner"
     assert data["verification_status"] == "pending"
+    assert data["garage_status"] == "pending_documents"
+    assert data["review_attempts"] == 0
 
 
 def test_list_vehicles_returns_current_user_links(client: TestClient) -> None:

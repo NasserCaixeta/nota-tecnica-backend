@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -9,10 +9,12 @@ from app.db.base import Base
 
 class VehicleRelationshipType(StrEnum):
     OWNER = "owner"
+    SPOUSE = "spouse"
     FAMILY = "family"
     COMPANY_REPRESENTATIVE = "company_representative"
+    FLEET_RESPONSIBLE = "fleet_responsible"
+    RECENT_BUYER = "recent_buyer"
     AUTHORIZED_DRIVER = "authorized_driver"
-    BUYER_INTERESTED = "buyer_interested"
     OTHER = "other"
 
 
@@ -20,6 +22,14 @@ class VerificationStatus(StrEnum):
     PENDING = "pending"
     VERIFIED = "verified"
     REJECTED = "rejected"
+
+
+class GarageValidationStatus(StrEnum):
+    PENDING_DOCUMENTS = "pending_documents"
+    UNDER_REVIEW = "under_review"
+    ACTIVE = "active"
+    REJECTED = "rejected"
+    PAYMENT_REQUIRED = "payment_required"
 
 
 class Vehicle(Base):
@@ -71,6 +81,24 @@ class VehicleUser(Base):
         nullable=False,
     )
     verification_rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    garage_status: Mapped[GarageValidationStatus] = mapped_column(
+        Enum(GarageValidationStatus, native_enum=False),
+        nullable=False,
+        default=GarageValidationStatus.PENDING_DOCUMENTS,
+    )
+    relationship_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    submitted_for_review_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    requested_document_types: Mapped[list[str]] = mapped_column(
+        JSON,
+        default=list,
+        nullable=False,
+    )
+    admin_review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

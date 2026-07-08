@@ -42,6 +42,17 @@ class DocumentProcessingStatus(StrEnum):
     FAILED = "failed"
 
 
+class ValidationDocumentType(StrEnum):
+    CRLV = "crlv"
+    OWNER_AUTHORIZATION = "owner_authorization"
+    RELATIONSHIP_PROOF = "relationship_proof"
+    COMPANY_CONTRACT_OR_POWER_OF_ATTORNEY = "company_contract_or_power_of_attorney"
+    REPRESENTATIVE_IDENTITY = "representative_identity"
+    FLEET_AUTHORIZATION = "fleet_authorization"
+    PURCHASE_RECEIPT_OR_ATPV = "purchase_receipt_or_atpv"
+    DRIVER_IDENTITY = "driver_identity"
+
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -53,9 +64,18 @@ class Document(Base):
         nullable=True,
         index=True,
     )
+    vehicle_link_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vehicle_users.id"),
+        nullable=True,
+        index=True,
+    )
     document_type: Mapped[DocumentType] = mapped_column(
         Enum(DocumentType, native_enum=False),
         nullable=False,
+    )
+    validation_document_type: Mapped[ValidationDocumentType | None] = mapped_column(
+        Enum(ValidationDocumentType, native_enum=False),
+        nullable=True,
     )
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str] = mapped_column(String(120), nullable=False)

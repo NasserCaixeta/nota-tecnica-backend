@@ -7,19 +7,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.maintenance.schemas import MaintenanceRecordCreate, MaintenanceRecordUpdate
 from app.modules.users.models import User
-from app.modules.vehicles.models import Vehicle, VehicleUser
+from app.modules.vehicles.models import GarageValidationStatus, Vehicle, VehicleUser
 from app.modules.workshops.models import Workshop
 
 
 async def ensure_user_vehicle_link(session: AsyncSession, vehicle_id: int, user: User) -> Vehicle:
     result = await session.execute(
-        select(Vehicle)
+        select(Vehicle, VehicleUser)
         .join(VehicleUser, VehicleUser.vehicle_id == Vehicle.id)
         .where(Vehicle.id == vehicle_id, VehicleUser.user_id == user.id)
     )
-    vehicle = result.scalar_one_or_none()
-    if vehicle is None:
+    row = result.one_or_none()
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
+    vehicle, link = row
+    if link.garage_status in {
+        GarageValidationStatus.PAYMENT_REQUIRED,
+        GarageValidationStatus.REJECTED,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Garage status does not allow maintenance records",
+        )
     return vehicle
 
 
