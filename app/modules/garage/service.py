@@ -242,8 +242,7 @@ async def list_garage_vehicle_items(session: AsyncSession, user: User) -> list[G
         .order_by(Vehicle.id)
     )
     return [
-        await build_garage_vehicle_item(session, vehicle, link)
-        for vehicle, link in result.all()
+        await build_garage_vehicle_item(session, vehicle, link) for vehicle, link in result.all()
     ]
 
 

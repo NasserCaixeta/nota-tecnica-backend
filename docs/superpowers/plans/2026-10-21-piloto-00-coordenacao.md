@@ -78,7 +78,7 @@ Tipos de contrato são definidos nas tarefas donas. Consumidores importam esses 
 
 ## Acompanhamento
 
-- [ ] P01 concluído e verificado.
+- [x] P01 concluído e verificado: backend 133 testes, frontend 25 testes, lint/format/build aprovados; PostgreSQL inclui migração e concorrência.
 - [ ] P02 concluído e verificado.
 - [ ] P03 concluído e verificado.
 - [ ] P04 concluído e verificado.

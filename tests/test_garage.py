@@ -29,9 +29,7 @@ def test_required_documents_for_owner() -> None:
 
 
 def test_required_documents_for_company_representative() -> None:
-    assert required_documents_for_relationship(
-        VehicleRelationshipType.COMPANY_REPRESENTATIVE
-    ) == [
+    assert required_documents_for_relationship(VehicleRelationshipType.COMPANY_REPRESENTATIVE) == [
         ValidationDocumentType.CRLV,
         ValidationDocumentType.COMPANY_CONTRACT_OR_POWER_OF_ATTORNEY,
         ValidationDocumentType.REPRESENTATIVE_IDENTITY,
@@ -225,7 +223,7 @@ def upload_validation_document(
     headers: dict[str, str],
     validation_document_type: str,
 ) -> dict[str, object]:
-    client.app.dependency_overrides[get_storage_client] = lambda: (lambda: FakeStorageClient())
+    client.app.dependency_overrides[get_storage_client] = lambda: lambda: FakeStorageClient()
     response = client.post(
         f"/api/v1/garage/vehicle-links/{link_id}/documents/upload-intents",
         json={

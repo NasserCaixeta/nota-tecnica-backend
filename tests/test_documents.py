@@ -114,7 +114,7 @@ def test_list_and_read_vehicle_documents(client: TestClient) -> None:
 def test_linked_user_can_create_document_upload_intent(client: TestClient) -> None:
     headers = auth_headers(client)
     vehicle_id = create_vehicle(client, headers)
-    client.app.dependency_overrides[get_storage_client] = lambda: (lambda: FakeStorageClient())
+    client.app.dependency_overrides[get_storage_client] = lambda: lambda: FakeStorageClient()
 
     response = client.post(
         f"/api/v1/vehicles/{vehicle_id}/documents/upload-intents",
@@ -141,7 +141,7 @@ def test_unlinked_user_cannot_create_document_upload_intent(client: TestClient) 
     owner_headers = auth_headers(client)
     vehicle_id = create_vehicle(client, owner_headers)
     other_headers = auth_headers(client, email="other@example.com", cpf="39053344705")
-    client.app.dependency_overrides[get_storage_client] = lambda: (lambda: FakeStorageClient())
+    client.app.dependency_overrides[get_storage_client] = lambda: lambda: FakeStorageClient()
 
     response = client.post(
         f"/api/v1/vehicles/{vehicle_id}/documents/upload-intents",
@@ -178,7 +178,7 @@ def create_upload_intent(
     vehicle_id: int,
     headers: dict[str, str],
 ) -> dict[str, object]:
-    client.app.dependency_overrides[get_storage_client] = lambda: (lambda: FakeStorageClient())
+    client.app.dependency_overrides[get_storage_client] = lambda: lambda: FakeStorageClient()
     response = client.post(
         f"/api/v1/vehicles/{vehicle_id}/documents/upload-intents",
         json={

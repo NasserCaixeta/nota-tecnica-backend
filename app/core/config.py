@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     app_env: str = Field(default="local", alias="APP_ENV")
     debug: bool = Field(default=True, alias="DEBUG")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
+    backend_cors_origins: list[str] = Field(
+        default=["http://localhost:5173"], alias="BACKEND_CORS_ORIGINS"
+    )
 
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")

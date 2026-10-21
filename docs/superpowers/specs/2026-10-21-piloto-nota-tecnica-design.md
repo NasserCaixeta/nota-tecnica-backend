@@ -2,7 +2,7 @@
 
 Data: 21/10/2026.
 
-Estado: aprovada pelo usuário em 21/10/2026, após apresentação do arquivo e resposta “mete bronca”. Implementação ainda não iniciada.
+Estado: aprovada pelo usuário em 21/10/2026, após apresentação do arquivo e resposta “mete bronca”. Implementação em andamento na branch `feat/piloto` dos dois repositórios.
 
 Abrangência: backend `nota-tecnica-backend` e frontend irmão `nota-tecnica-frontend`.
 

@@ -74,8 +74,7 @@ async def list_workshop_ranking(
         durations = [
             value
             for value in (
-                delivery_days(record.entry_date, record.actual_delivery_date)
-                for record in records
+                delivery_days(record.entry_date, record.actual_delivery_date) for record in records
             )
             if value is not None
         ]

@@ -28,11 +28,11 @@ Aplicam-se os contratos, convenções B:/F:, verificações e limites do [plano 
 
 **Interfaces:** produzir `ParticipationStatus(pending, approved, rejected, suspended)`, campos `User.is_admin`, `participation_status`, `participation_version`, `participation_reason`; `UserRead.capabilities: list[str]` com `customer` para aprovados, `workshop_owner` apenas com representação aprovada e `admin` quando aplicável. Produzir `AuditEvent` e `append_audit` conforme P00; não guardar segredo ou arquivo no evento.
 
-- [ ] Adicionar `test_public_registration_cannot_set_privileges`: `assert response.status_code == 422` para `is_admin=true` ou `participation_status=approved`; `test_customer_registration_starts_pending`: `assert body['participation_status'] == 'pending'` e `assert body['is_admin'] is False`. Preservar teste existente que recusa `profile_type=admin`, com 400.
-- [ ] Executar `uv run pytest tests/test_participation_models.py tests/test_auth_users.py -q`; deve falhar nos novos comportamentos, sem falhas de importação por ambiente.
-- [ ] Implementar migração aditiva: ler o enum legado efetivamente persistido; migrar antigos `ADMIN` como aprovados, demais como pendentes. Aceitar `profile_type` legado comum como intenção de onboarding, nunca como representação aprovada. Manter resposta legada enquanto consumidores migram; autorização nova usa os novos campos. Registrar modelos na metadata. Testar migração com dados nos dois formatos de enum encontrados, sem promover contas comuns.
-- [ ] Executar os testes acima e `uv run pytest tests/integration/test_identity_migration.py -q` com `TEST_POSTGRES_URL` já configurada para banco descartável; exigir zero falhas e dados preservados. O valor da variável é obtido do ambiente de testes, não copiado do banco operacional.
-- [ ] Commit sugerido: `feat: separate pilot participation from account identity`.
+- [x] Adicionar `test_public_registration_cannot_set_privileges`: `assert response.status_code == 422` para `is_admin=true` ou `participation_status=approved`; `test_customer_registration_starts_pending`: `assert body['participation_status'] == 'pending'` e `assert body['is_admin'] is False`. Preservar teste existente que recusa `profile_type=admin`, com 400.
+- [x] Executar `uv run pytest tests/test_participation_models.py tests/test_auth_users.py -q`; deve falhar nos novos comportamentos, sem falhas de importação por ambiente.
+- [x] Implementar migração aditiva: ler o enum legado efetivamente persistido; migrar antigos `ADMIN` como aprovados, demais como pendentes. Aceitar `profile_type` legado comum como intenção de onboarding, nunca como representação aprovada. Manter resposta legada enquanto consumidores migram; autorização nova usa os novos campos. Registrar modelos na metadata. Testar migração com dados nos dois formatos de enum encontrados, sem promover contas comuns.
+- [x] Executar os testes acima e `uv run pytest tests/integration/test_identity_migration.py -q` com `TEST_POSTGRES_URL` já configurada para banco descartável; exigir zero falhas e dados preservados. O valor da variável é obtido do ambiente de testes, não copiado do banco operacional.
+- [x] Commit sugerido: `feat: separate pilot participation from account identity`.
 
 ### Task 2 — T2: Aprovações, privilégios e conflitos de decisão
 
@@ -40,11 +40,11 @@ Aplicam-se os contratos, convenções B:/F:, verificações e limites do [plano 
 
 **Interfaces:** produzir `get_approved_participant` no arquivo de dependências; `review_participant(session, *, actor, user_id, decision, expected_version, reason) -> User`; `set_admin_access(session, *, actor, user_id, enabled, reason) -> User`. Endpoints: `GET /admin/participants?status=pending`, `PATCH /admin/participants/{id}/review`, `PATCH /admin/users/{id}/admin-access`; decisões recebem `expected_version`. Manter `get_current_user` para sessão/perfil pendente.
 
-- [ ] Adicionar testes de conta pendente com JWT nas rotas operacionais: `assert response.status_code == 403`; aprovar com administrador libera a mesma rota. Para versão antiga, `assert response.status_code == 409`; para autoaprovação e revogação do último administrador, `assert response.status_code == 409`. Conferir evento de auditoria e rollback conjunto em falha.
-- [ ] Executar `uv run pytest tests/test_participation_admin.py -q`, confirmando falha pelos comportamentos ausentes.
-- [ ] Implementar decisões transacionais com comparação de versão e bloqueio das alterações de privilégio. Serializar mudanças do conjunto de administradores no PostgreSQL para proteger o último ativo. CLI `python -m app.cli.bootstrap_admin --email` recebe o e-mail da identidade existente como argumento obrigatório em execução operacional restrita, sem senha via argumento nem endpoint de bootstrap. Atualizar helpers antigos para aprovação explícita via fixture de banco; não criar bypass de aprovação no código de produto.
-- [ ] Executar testes direcionados, suite existente de autenticação e testes PostgreSQL com duas sessões concorrentes; testar que duas revogações não deixam zero administradores.
-- [ ] Commit sugerido: `feat: add audited pilot participation reviews`.
+- [x] Adicionar testes de conta pendente com JWT nas rotas operacionais: `assert response.status_code == 403`; aprovar com administrador libera a mesma rota. Para versão antiga, `assert response.status_code == 409`; para autoaprovação e revogação do último administrador, `assert response.status_code == 409`. Conferir evento de auditoria e rollback conjunto em falha.
+- [x] Executar `uv run pytest tests/test_participation_admin.py -q`, confirmando falha pelos comportamentos ausentes.
+- [x] Implementar decisões transacionais com comparação de versão e bloqueio das alterações de privilégio. Serializar mudanças do conjunto de administradores no PostgreSQL para proteger o último ativo. CLI `python -m app.cli.bootstrap_admin --email` recebe o e-mail da identidade existente como argumento obrigatório em execução operacional restrita, sem senha via argumento nem endpoint de bootstrap. Atualizar helpers antigos para aprovação explícita via fixture de banco; não criar bypass de aprovação no código de produto.
+- [x] Executar testes direcionados, suite existente de autenticação e testes PostgreSQL com duas sessões concorrentes; testar que duas revogações não deixam zero administradores.
+- [x] Commit sugerido: `feat: add audited pilot participation reviews`.
 
 ### Task 3 — T3: Sessão, experiência de aprovação e navegação
 
@@ -52,10 +52,10 @@ Aplicam-se os contratos, convenções B:/F:, verificações e limites do [plano 
 
 **Interfaces:** `SessionProvider` expõe `{user, status, refresh, logout}`, onde `status` é `loading | anonymous | authenticated`; `AuthGuard` recebe `requireApproved?: boolean`, `requireAdmin?: boolean`. `/app/participacao` permite perfil autenticado pendente; `/admin/participantes` exige admin. API expõe os novos campos de P01-T1; frontend não deriva privilégio do JWT local.
 
-- [ ] Testar: sessão com token inválido termina em login; pendente termina em `/app/participacao`; aprovado com capacidades cliente/oficina mantém ambas as navegações; não admin não renderiza fila. `assert` de CORS via teste: preflight da origem configurada retorna cabeçalho permitido e outra origem não. Testar erro textual/502 e 204 no cliente HTTP.
-- [ ] Executar `uv run pytest tests/test_cors.py -q`; em `F:`, `npm run test -- --run src/components/layout/AuthGuard.test.tsx src/lib/api/client.test.ts`; confirmar falhas de comportamento.
-- [ ] Implementar consulta a `/users/me`, logout com limpeza, redirecionamento por estado, fila com motivo e versão. Trocar link quebrado de oficinas para `/app/oficinas`; adicionar rotas de entrada para `/app` e `/admin` e página de rota desconhecida. Configurar origens de CORS explicitamente por ambiente, sem curinga. Mostrar erros de aprovação; nunca transformá-los em lista vazia.
-- [ ] Executar verificações completas dos dois repositórios de P00. Conferir cadastro → pendente → aprovação por outro admin → acesso e navegação de oficina sem segunda conta.
-- [ ] Commit sugerido em cada repo: `feat: connect pilot participation and session flows`.
+- [x] Testar: sessão com token inválido termina em login; pendente termina em `/app/participacao`; aprovado com capacidades cliente/oficina mantém ambas as navegações; não admin não renderiza fila. `assert` de CORS via teste: preflight da origem configurada retorna cabeçalho permitido e outra origem não. Testar erro textual/502 e 204 no cliente HTTP.
+- [x] Executar `uv run pytest tests/test_cors.py -q`; em `F:`, `npm run test -- --run src/components/layout/AuthGuard.test.tsx src/lib/api/client.test.ts`; confirmar falhas de comportamento.
+- [x] Implementar consulta a `/users/me`, logout com limpeza, redirecionamento por estado, fila com motivo e versão. Trocar link quebrado de oficinas para `/app/oficinas`; adicionar rotas de entrada para `/app` e `/admin` e página de rota desconhecida. Configurar origens de CORS explicitamente por ambiente, sem curinga. Mostrar erros de aprovação; nunca transformá-los em lista vazia.
+- [x] Executar verificações completas dos dois repositórios de P00. Conferir cadastro → pendente → aprovação por outro admin → acesso e navegação de oficina sem segunda conta.
+- [x] Commit sugerido em cada repo: `feat: connect pilot participation and session flows`.
 
 **Saída:** A01–A03 exercitados e telas de aprovação utilizáveis. Registrar commits e resultados em P00 antes de iniciar P02.
