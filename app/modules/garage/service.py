@@ -4,7 +4,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.documents.models import Document, DocumentUploadStatus, ValidationDocumentType
+from app.modules.documents.models import (
+    Document,
+    DocumentReviewStatus,
+    DocumentUploadStatus,
+    ValidationDocumentType,
+)
 from app.modules.garage.requirements import required_documents_for_relationship
 from app.modules.garage.schemas import (
     AdminGarageVehicleLinkRead,
@@ -96,35 +101,75 @@ async def create_garage_vehicle(
     return await build_garage_vehicle_item(session, vehicle, link)
 
 
-async def uploaded_validation_document_types(
-    session: AsyncSession,
-    link: VehicleUser,
-) -> list[ValidationDocumentType]:
-    result = await session.execute(
-        select(Document.validation_document_type).where(
-            Document.vehicle_link_id == link.id,
-            Document.upload_status == DocumentUploadStatus.UPLOADED,
-            Document.storage_verified.is_(True),
-            Document.validation_document_type.is_not(None),
+async def latest_validation_documents(session: AsyncSession, link: VehicleUser) -> list[Document]:
+    rows = (
+        await session.scalars(
+            select(Document)
+            .where(
+                Document.vehicle_link_id == link.id,
+                Document.owner_user_id == link.user_id,
+                Document.validation_document_type.is_not(None),
+            )
+            .order_by(Document.id.desc())
         )
-    )
-    return [value for value in result.scalars().all() if value is not None]
+    ).all()
+    latest = {}
+    for document in rows:
+        latest.setdefault(document.validation_document_type, document)
+    return list(latest.values())
+
+
+async def uploaded_validation_document_types(session: AsyncSession, link: VehicleUser):
+    return [
+        doc.validation_document_type
+        for doc in await latest_validation_documents(session, link)
+        if doc.storage_verified and doc.upload_status == DocumentUploadStatus.UPLOADED
+    ]
 
 
 async def build_document_checklist(
-    session: AsyncSession,
-    link: VehicleUser,
+    session: AsyncSession, link: VehicleUser
 ) -> GarageDocumentChecklist:
-    base_required = required_documents_for_relationship(link.relationship_type)
-    extra_required = [
-        ValidationDocumentType(value)
-        for value in (link.requested_document_types or [])
-        if ValidationDocumentType(value) not in base_required
+    base = required_documents_for_relationship(link.relationship_type)
+    required = list(
+        dict.fromkeys(
+            [*base, *[ValidationDocumentType(v) for v in (link.requested_document_types or [])]]
+        )
+    )
+    docs = await latest_validation_documents(session, link)
+    verified = [
+        doc
+        for doc in docs
+        if doc.storage_verified and doc.upload_status == DocumentUploadStatus.UPLOADED
     ]
-    required = [*base_required, *extra_required]
-    uploaded = await uploaded_validation_document_types(session, link)
-    missing = [document_type for document_type in required if document_type not in uploaded]
-    return GarageDocumentChecklist(required=required, uploaded=uploaded, missing=missing)
+    uploaded = [doc.validation_document_type for doc in verified]
+    missing_uploads = [kind for kind in required if kind not in uploaded]
+    approved = [
+        doc.validation_document_type
+        for doc in verified
+        if doc.review_status == DocumentReviewStatus.APPROVED
+    ]
+    awaiting = [
+        doc.validation_document_type
+        for doc in verified
+        if doc.review_status == DocumentReviewStatus.PENDING
+    ]
+    rejected = [
+        doc.validation_document_type
+        for doc in verified
+        if doc.review_status == DocumentReviewStatus.REJECTED
+    ]
+    return GarageDocumentChecklist(
+        required=required,
+        uploaded=uploaded,
+        missing=list(
+            dict.fromkeys([*missing_uploads, *[kind for kind in required if kind in rejected]])
+        ),
+        missing_uploads=missing_uploads,
+        awaiting_review=awaiting,
+        rejected=rejected,
+        approved=approved,
+    )
 
 
 async def build_recommended_workshops(
@@ -174,8 +219,10 @@ async def build_garage_vehicle_item(
         relationship_type=link.relationship_type,
         garage_status=link.garage_status,
         commercial_access="free" if commercial_write else "read_only",
+        admin_review_note=link.admin_review_note,
         verification_rejection_reason=link.verification_rejection_reason,
         review_attempts=link.review_attempts,
+        review_version=link.review_version,
         permissions=build_garage_permissions(
             link.garage_status,
             can_submit_review=can_submit_review,
@@ -322,6 +369,7 @@ async def build_admin_garage_vehicle_link_read(
     link: VehicleUser,
 ) -> AdminGarageVehicleLinkRead:
     checklist = await build_document_checklist(session, link)
+    user = await session.get(User, link.user_id)
     return AdminGarageVehicleLinkRead(
         vehicle_link_id=link.id,
         vehicle_id=vehicle.id,
@@ -334,6 +382,13 @@ async def build_admin_garage_vehicle_link_read(
         missing_documents=checklist.missing,
         verification_rejection_reason=link.verification_rejection_reason,
         review_attempts=link.review_attempts,
+        review_version=link.review_version,
         submitted_for_review_at=link.submitted_for_review_at,
         reviewed_at=link.reviewed_at,
+        approved_documents=checklist.approved,
+        awaiting_review_documents=checklist.awaiting_review,
+        rejected_documents=checklist.rejected,
+        documents=await latest_validation_documents(session, link),
+        admin_review_note=link.admin_review_note,
+        user_full_name=user.full_name,
     )

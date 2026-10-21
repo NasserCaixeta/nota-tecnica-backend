@@ -8,11 +8,7 @@ from alembic import command
 from app.core.config import get_settings
 from app.modules.users.models import User, UserProfileType
 from app.modules.vehicles.models import (
-    GarageValidationStatus,
     Vehicle,
-    VehicleRelationshipType,
-    VehicleUser,
-    VerificationStatus,
 )
 from tests.test_auth_users import user_payload
 from tests.test_vehicles import vehicle_payload
@@ -50,17 +46,14 @@ async def test_garage_migration_preserves_links_with_only_one_free_vehicle(
                 )
                 vehicle_id = result.scalar_one()
                 await conn.execute(
-                    VehicleUser.__table__.insert().values(
-                        user_id=1,
-                        vehicle_id=vehicle_id,
-                        relationship_type=VehicleRelationshipType.OWNER,
-                        verification_status=VerificationStatus.PENDING,
-                        garage_status=(
-                            GarageValidationStatus.PENDING_DOCUMENTS
-                            if index == 0
-                            else GarageValidationStatus.PAYMENT_REQUIRED
-                        ),
-                    )
+                    text("""INSERT INTO vehicle_users
+                    (user_id,vehicle_id,relationship_type,verification_status,garage_status,
+                     review_attempts,requested_document_types,created_at,updated_at)
+                    VALUES (1,:vehicle_id,'OWNER','PENDING',:garage_status,0,'[]',now(),now())"""),
+                    {
+                        "vehicle_id": vehicle_id,
+                        "garage_status": "PENDING_DOCUMENTS" if index == 0 else "PAYMENT_REQUIRED",
+                    },
                 )
         await asyncio.to_thread(command.upgrade, config, "20261021_0006")
         async with pg_engine.connect() as conn:
@@ -84,7 +77,7 @@ async def test_garage_migration_preserves_links_with_only_one_free_vehicle(
                 VALUES (1,1,'CRLV','legacy.pdf','application/pdf','legacy-key','APPROVED',
                         'UPLOADED','NOT_REQUESTED','legacy.pdf',now(),now())""")
             )
-        await asyncio.to_thread(command.upgrade, config, "20261021_0006a")
+        await asyncio.to_thread(command.upgrade, config, "20261021_0006b")
         async with pg_engine.connect() as conn:
             assert (
                 await conn.execute(text("SELECT storage_verified FROM documents"))

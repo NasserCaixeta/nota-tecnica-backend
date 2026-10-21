@@ -9,6 +9,7 @@ from app.db.session import get_db
 from app.modules.admin.participation import review_participant, set_admin_access
 from app.modules.admin.schemas import AdminAccessUpdate, ParticipantReview
 from app.modules.admin.service import (
+    get_admin_garage_vehicle_link,
     list_pending_garage_vehicle_links,
     request_garage_additional_documents,
     review_document,
@@ -16,8 +17,7 @@ from app.modules.admin.service import (
     review_vehicle_link,
 )
 from app.modules.auth.dependencies import get_current_admin_user
-from app.modules.documents.models import DocumentReviewStatus
-from app.modules.documents.schemas import DocumentRead
+from app.modules.documents.schemas import DocumentRead, DocumentReviewUpdate
 from app.modules.garage.schemas import AdminAdditionalDocumentsRequest, AdminGarageVehicleLinkRead
 from app.modules.users.models import ParticipationStatus, User
 from app.modules.users.schemas import UserRead
@@ -68,6 +68,7 @@ async def patch_admin_access(
 
 
 class VehicleLinkReviewUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
     verification_status: VerificationStatus
     verification_rejection_reason: str | None = Field(default=None, max_length=500)
 
@@ -80,11 +81,6 @@ class VehicleLinkReviewRead(BaseModel):
     verification_rejection_reason: str | None
 
 
-class DocumentReviewUpdate(BaseModel):
-    review_status: DocumentReviewStatus
-    rejection_reason: str | None = Field(default=None, max_length=1000)
-
-
 @router.patch(
     "/vehicle-links/{vehicle_link_id}/verification",
     response_model=VehicleLinkReviewRead,
@@ -92,7 +88,7 @@ class DocumentReviewUpdate(BaseModel):
 async def patch_vehicle_link_verification(
     vehicle_link_id: int,
     payload: VehicleLinkReviewUpdate,
-    _: Annotated[User, Depends(get_current_admin_user)],
+    actor: Annotated[User, Depends(get_current_admin_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> VehicleLinkReviewRead:
     return await review_vehicle_link(
@@ -100,6 +96,8 @@ async def patch_vehicle_link_verification(
         vehicle_link_id,
         payload.verification_status,
         payload.verification_rejection_reason,
+        actor=actor,
+        expected_version=payload.expected_version,
     )
 
 
@@ -107,7 +105,7 @@ async def patch_vehicle_link_verification(
 async def patch_document_review(
     document_id: int,
     payload: DocumentReviewUpdate,
-    _: Annotated[User, Depends(get_current_admin_user)],
+    actor: Annotated[User, Depends(get_current_admin_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> DocumentRead:
     return await review_document(
@@ -115,6 +113,8 @@ async def patch_document_review(
         document_id,
         payload.review_status,
         payload.rejection_reason,
+        actor=actor,
+        expected_version=payload.expected_version,
     )
 
 
@@ -136,7 +136,7 @@ async def read_pending_garage_vehicle_links(
 async def patch_garage_vehicle_link_review(
     vehicle_link_id: int,
     payload: VehicleLinkReviewUpdate,
-    _: Annotated[User, Depends(get_current_admin_user)],
+    actor: Annotated[User, Depends(get_current_admin_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AdminGarageVehicleLinkRead:
     return await review_garage_vehicle_link(
@@ -144,6 +144,8 @@ async def patch_garage_vehicle_link_review(
         vehicle_link_id,
         payload.verification_status,
         payload.verification_rejection_reason,
+        actor=actor,
+        expected_version=payload.expected_version,
     )
 
 
@@ -154,7 +156,16 @@ async def patch_garage_vehicle_link_review(
 async def post_garage_additional_documents_request(
     vehicle_link_id: int,
     payload: AdminAdditionalDocumentsRequest,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> AdminGarageVehicleLinkRead:
+    return await request_garage_additional_documents(session, vehicle_link_id, payload, actor=actor)
+
+
+@router.get("/garage/vehicle-links/{vehicle_link_id}", response_model=AdminGarageVehicleLinkRead)
+async def read_garage_vehicle_link_detail(
+    vehicle_link_id: int,
     _: Annotated[User, Depends(get_current_admin_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AdminGarageVehicleLinkRead:
-    return await request_garage_additional_documents(session, vehicle_link_id, payload)
+    return await get_admin_garage_vehicle_link(session, vehicle_link_id)

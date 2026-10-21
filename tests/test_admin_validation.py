@@ -34,7 +34,7 @@ async def create_admin_user(db_session: AsyncSession) -> None:
     await db_session.commit()
 
 
-async def test_admin_can_verify_vehicle_link(
+async def test_admin_cannot_verify_vehicle_link_without_evidence(
     client: TestClient,
     db_session: AsyncSession,
 ) -> None:
@@ -46,13 +46,11 @@ async def test_admin_can_verify_vehicle_link(
 
     response = client.patch(
         f"/api/v1/admin/vehicle-links/{vehicle['vehicle_link_id']}/verification",
-        json={"verification_status": "verified"},
+        json={"verification_status": "verified", "expected_version": 1},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
-    assert response.status_code == 200, response.text
-    assert response.json()["verification_status"] == "verified"
-    assert response.json()["verification_rejection_reason"] is None
+    assert response.status_code == 409, response.text
 
 
 async def test_admin_can_reject_document(
@@ -67,7 +65,11 @@ async def test_admin_can_reject_document(
 
     response = client.patch(
         f"/api/v1/admin/documents/{document['id']}/review",
-        json={"review_status": "rejected", "rejection_reason": "Unreadable document"},
+        json={
+            "review_status": "rejected",
+            "rejection_reason": "Unreadable document",
+            "expected_version": 1,
+        },
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 

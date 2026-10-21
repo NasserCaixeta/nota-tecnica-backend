@@ -93,6 +93,7 @@ class VehicleUser(Base):
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     review_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    review_version: Mapped[int] = mapped_column(default=1, nullable=False)
     requested_document_types: Mapped[list[str]] = mapped_column(
         JSON,
         default=list,

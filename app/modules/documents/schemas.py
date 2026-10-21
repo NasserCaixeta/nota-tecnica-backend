@@ -59,6 +59,7 @@ class DocumentRead(BaseModel):
     review_status: DocumentReviewStatus
     upload_status: DocumentUploadStatus
     storage_verified: bool
+    review_version: int
     processing_status: DocumentProcessingStatus
     original_file_name: str
     file_size_bytes: int | None
@@ -69,6 +70,7 @@ class DocumentRead(BaseModel):
 
 
 class DocumentReviewUpdate(BaseModel):
+    expected_version: int = Field(ge=1)
     review_status: DocumentReviewStatus
     rejection_reason: str | None = Field(default=None, max_length=1000)
 

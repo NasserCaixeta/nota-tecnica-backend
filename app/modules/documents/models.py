@@ -58,6 +58,7 @@ class Document(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     storage_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    review_version: Mapped[int] = mapped_column(default=1, nullable=False)
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False, index=True)
     maintenance_record_id: Mapped[int | None] = mapped_column(

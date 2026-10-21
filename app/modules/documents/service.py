@@ -116,13 +116,19 @@ async def create_vehicle_link_document_upload_intent(
         select(Vehicle, VehicleUser)
         .join(VehicleUser, VehicleUser.vehicle_id == Vehicle.id)
         .where(VehicleUser.id == vehicle_link_id, VehicleUser.user_id == user.id)
+        .with_for_update(of=VehicleUser)
     )
     row = result.one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle link not found")
     vehicle, link = row
-    if link.garage_status == GarageValidationStatus.PAYMENT_REQUIRED:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Payment required")
+    if link.garage_status not in {
+        GarageValidationStatus.PENDING_DOCUMENTS,
+        GarageValidationStatus.REJECTED,
+    }:
+        raise HTTPException(
+            status_code=409, detail="Documents cannot be changed in the current review status"
+        )
     if payload.validation_document_type is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
