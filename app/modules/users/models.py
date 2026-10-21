@@ -13,6 +13,13 @@ class UserProfileType(StrEnum):
     ADMIN = "admin"
 
 
+class ParticipationStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    SUSPENDED = "suspended"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -35,6 +42,16 @@ class User(Base):
     state: Mapped[str] = mapped_column(String(2), nullable=False)
     complement: Mapped[str | None] = mapped_column(String(120), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    participation_status: Mapped[ParticipationStatus] = mapped_column(
+        Enum(
+            ParticipationStatus, native_enum=False, values_callable=lambda e: [v.value for v in e]
+        ),
+        default=ParticipationStatus.PENDING,
+        nullable=False,
+    )
+    participation_version: Mapped[int] = mapped_column(default=1, nullable=False)
+    participation_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
