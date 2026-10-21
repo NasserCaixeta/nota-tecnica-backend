@@ -33,7 +33,7 @@ class DocumentUploadIntentCreate(BaseModel):
     validation_document_type: ValidationDocumentType | None = None
     file_name: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=120)
-    file_size_bytes: int | None = Field(default=None, ge=0)
+    file_size_bytes: int | None = Field(default=None, ge=1, le=10 * 1024 * 1024)
 
     @field_validator("content_type")
     @classmethod
@@ -56,9 +56,9 @@ class DocumentRead(BaseModel):
     validation_document_type: ValidationDocumentType | None
     file_name: str
     content_type: str
-    storage_key: str
     review_status: DocumentReviewStatus
     upload_status: DocumentUploadStatus
+    storage_verified: bool
     processing_status: DocumentProcessingStatus
     original_file_name: str
     file_size_bytes: int | None
@@ -82,3 +82,8 @@ class DocumentUploadIntentRead(BaseModel):
 
 class DocumentUploadConfirm(BaseModel):
     file_size_bytes: int | None = Field(default=None, ge=0)
+
+
+class DocumentDownloadRead(BaseModel):
+    url: str
+    expires_at: datetime

@@ -1,11 +1,12 @@
 from fastapi.testclient import TestClient
 
-from app.integrations.storage.r2 import PresignedUpload
 from app.modules.documents.models import ValidationDocumentType
+from app.modules.documents.router import get_storage_client as get_document_storage
 from app.modules.garage.requirements import required_documents_for_relationship
 from app.modules.garage.router import get_storage_client
 from app.modules.garage.service import build_garage_permissions
 from app.modules.vehicles.models import GarageValidationStatus, VehicleRelationshipType
+from tests.test_documents import FakeStorageClient
 from tests.test_maintenance import auth_headers, maintenance_payload
 from tests.test_vehicles import vehicle_payload
 
@@ -205,26 +206,18 @@ def test_submit_review_without_required_documents_fails(client: TestClient) -> N
     assert response.json()["detail"] == "Required validation documents are missing"
 
 
-class FakeStorageClient:
-    def create_presigned_upload_url(
-        self,
-        storage_key: str,
-        content_type: str,
-        expires_seconds: int,
-    ) -> PresignedUpload:
-        return PresignedUpload(
-            upload_url=f"https://upload.example.test/{storage_key}",
-            required_headers={"Content-Type": content_type},
-        )
-
-
 def upload_validation_document(
     client: TestClient,
     link_id: int,
     headers: dict[str, str],
     validation_document_type: str,
 ) -> dict[str, object]:
-    client.app.dependency_overrides[get_storage_client] = lambda: lambda: FakeStorageClient()
+    client.app.dependency_overrides[get_storage_client] = lambda: (
+        lambda: FakeStorageClient(size=1234)
+    )
+    client.app.dependency_overrides[get_document_storage] = lambda: (
+        lambda: FakeStorageClient(size=1234)
+    )
     response = client.post(
         f"/api/v1/garage/vehicle-links/{link_id}/documents/upload-intents",
         json={

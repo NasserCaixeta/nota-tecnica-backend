@@ -1,11 +1,15 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
 from app.integrations.storage.r2 import StorageClient, build_document_storage_key
+from app.modules.audit.service import append_audit
+from app.modules.documents.access import require_document_owner, require_document_reader
 from app.modules.documents.models import (
     Document,
     DocumentProcessingStatus,
@@ -14,13 +18,14 @@ from app.modules.documents.models import (
 )
 from app.modules.documents.schemas import (
     DocumentCreate,
+    DocumentDownloadRead,
     DocumentUploadConfirm,
     DocumentUploadIntentCreate,
     DocumentUploadIntentRead,
 )
 from app.modules.maintenance.models import MaintenanceRecord
-from app.modules.maintenance.service import ensure_user_vehicle_link
 from app.modules.users.models import User
+from app.modules.vehicles.access import require_vehicle_link
 from app.modules.vehicles.models import GarageValidationStatus, Vehicle, VehicleUser
 
 
@@ -28,11 +33,12 @@ async def ensure_maintenance_record_belongs_to_vehicle(
     session: AsyncSession,
     vehicle_id: int,
     maintenance_record_id: int | None,
+    user: User,
 ) -> None:
     if maintenance_record_id is None:
         return
     record = await session.get(MaintenanceRecord, maintenance_record_id)
-    if record is None:
+    if record is None or record.author_user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Maintenance record not found",
@@ -50,34 +56,7 @@ async def create_document(
     payload: DocumentCreate,
     user: User,
 ) -> Document:
-    await ensure_user_vehicle_link(session, vehicle_id, user)
-    duplicate = await session.execute(
-        select(Document).where(Document.storage_key == payload.storage_key)
-    )
-    if duplicate.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Document storage key already registered",
-        )
-    await ensure_maintenance_record_belongs_to_vehicle(
-        session,
-        vehicle_id,
-        payload.maintenance_record_id,
-    )
-    document = Document(
-        **payload.model_dump(),
-        vehicle_id=vehicle_id,
-        owner_user_id=user.id,
-        review_status=DocumentReviewStatus.PENDING,
-        upload_status=DocumentUploadStatus.UPLOADED,
-        processing_status=DocumentProcessingStatus.NOT_REQUESTED,
-        original_file_name=payload.file_name,
-        uploaded_at=datetime.now(UTC),
-    )
-    session.add(document)
-    await session.commit()
-    await session.refresh(document)
-    return document
+    raise HTTPException(status_code=410, detail="Use the document upload-intents flow")
 
 
 async def create_document_upload_intent(
@@ -87,11 +66,13 @@ async def create_document_upload_intent(
     user: User,
     storage_client: StorageClient,
 ) -> DocumentUploadIntentRead:
-    vehicle = await ensure_user_vehicle_link(session, vehicle_id, user)
+    await require_vehicle_link(session, user.id, vehicle_id)
+    vehicle = await session.get(Vehicle, vehicle_id)
     await ensure_maintenance_record_belongs_to_vehicle(
         session,
         vehicle_id,
         payload.maintenance_record_id,
+        user,
     )
     storage_key = build_document_storage_key(vehicle.plate, payload.file_name)
     document = Document(
@@ -151,6 +132,7 @@ async def create_vehicle_link_document_upload_intent(
         session,
         vehicle.id,
         payload.maintenance_record_id,
+        user,
     )
     storage_key = build_document_storage_key(vehicle.plate, payload.file_name)
     document = Document(
@@ -190,19 +172,18 @@ async def list_vehicle_documents(
     vehicle_id: int,
     user: User,
 ) -> list[Document]:
-    await ensure_user_vehicle_link(session, vehicle_id, user)
+    await require_vehicle_link(session, user.id, vehicle_id)
     result = await session.execute(
-        select(Document).where(Document.vehicle_id == vehicle_id).order_by(Document.id)
+        select(Document)
+        .where(Document.vehicle_id == vehicle_id, Document.owner_user_id == user.id)
+        .order_by(Document.id)
     )
     return list(result.scalars().all())
 
 
 async def get_document(session: AsyncSession, document_id: int, user: User) -> Document:
     document = await session.get(Document, document_id)
-    if document is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    await ensure_user_vehicle_link(session, document.vehicle_id, user)
-    return document
+    return require_document_reader(document, user)
 
 
 async def confirm_document_upload(
@@ -210,13 +191,74 @@ async def confirm_document_upload(
     document_id: int,
     payload: DocumentUploadConfirm,
     user: User,
+    storage_client: StorageClient,
 ) -> Document:
-    document = await get_document(session, document_id, user)
+    document = require_document_owner(
+        await session.scalar(
+            select(Document)
+            .where(
+                Document.id == document_id,
+            )
+            .with_for_update()
+        ),
+        user,
+    )
+    if document.upload_status == DocumentUploadStatus.UPLOADED and document.storage_verified:
+        return document
+    try:
+        info = await run_in_threadpool(storage_client.inspect_object, document.storage_key)
+        if not info.exists:
+            raise HTTPException(status_code=409, detail="The document has not been uploaded")
+        if not 0 < info.size_bytes <= 10 * 1024 * 1024:
+            raise HTTPException(status_code=422, detail="Document size exceeds the allowed limit")
+        if info.content_type != document.content_type:
+            raise HTTPException(status_code=422, detail="The uploaded document type is invalid")
+        for declared in (document.file_size_bytes, payload.file_size_bytes):
+            if declared is not None and declared != info.size_bytes:
+                raise HTTPException(
+                    status_code=422, detail="Document size differs from the uploaded file"
+                )
+        final_key = await run_in_threadpool(
+            storage_client.finalize_upload, document.storage_key, info.etag
+        )
+    except (BotoCoreError, ClientError, OSError) as exc:
+        raise HTTPException(
+            status_code=503, detail="Document storage is temporarily unavailable"
+        ) from exc
+    document.storage_key = final_key
     document.upload_status = DocumentUploadStatus.UPLOADED
-    document.processing_status = DocumentProcessingStatus.PENDING
-    if payload.file_size_bytes is not None:
-        document.file_size_bytes = payload.file_size_bytes
+    document.storage_verified = True
+    document.review_status = DocumentReviewStatus.PENDING
+    document.processing_status = DocumentProcessingStatus.NOT_REQUESTED
+    document.file_size_bytes = info.size_bytes
     document.uploaded_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(document)
     return document
+
+
+async def get_document_download(
+    session: AsyncSession,
+    document_id: int,
+    actor: User,
+    storage: StorageClient,
+) -> DocumentDownloadRead:
+    document = await get_document(session, document_id, actor)
+    if document.upload_status != DocumentUploadStatus.UPLOADED or not document.storage_verified:
+        raise HTTPException(status_code=409, detail="The document has not been uploaded")
+    try:
+        url = storage.create_presigned_download_url(document.storage_key, expires_seconds=300)
+    except (BotoCoreError, ClientError, OSError) as exc:
+        raise HTTPException(
+            status_code=503, detail="Document storage is temporarily unavailable"
+        ) from exc
+    if actor.is_admin and actor.id != document.owner_user_id:
+        await append_audit(
+            session,
+            actor_id=actor.id,
+            action="document.download",
+            target_type="document",
+            target_id=document.id,
+        )
+        await session.commit()
+    return DocumentDownloadRead(url=url, expires_at=datetime.now(UTC) + timedelta(seconds=300))

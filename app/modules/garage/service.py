@@ -104,6 +104,7 @@ async def uploaded_validation_document_types(
         select(Document.validation_document_type).where(
             Document.vehicle_link_id == link.id,
             Document.upload_status == DocumentUploadStatus.UPLOADED,
+            Document.storage_verified.is_(True),
             Document.validation_document_type.is_not(None),
         )
     )

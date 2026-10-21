@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.auth.security import hash_password
 from app.modules.users.models import ParticipationStatus, User, UserProfileType
 from tests.test_auth_users import login
-from tests.test_documents import document_payload
+from tests.test_documents import create_uploaded_document
 from tests.test_maintenance import auth_headers, create_vehicle
 
 
@@ -61,11 +61,7 @@ async def test_admin_can_reject_document(
 ) -> None:
     user_headers = auth_headers(client)
     vehicle_id = create_vehicle(client, user_headers)
-    document = client.post(
-        f"/api/v1/vehicles/{vehicle_id}/documents",
-        json=document_payload(),
-        headers=user_headers,
-    ).json()
+    document = create_uploaded_document(client, vehicle_id, user_headers)
     await create_admin_user(db_session)
     admin_token = login(client, email="admin@example.com")
 

@@ -76,5 +76,18 @@ async def test_garage_migration_preserves_links_with_only_one_free_vehicle(
                 .all()
             )
             assert states == ["PENDING_DOCUMENTS", "PENDING_DOCUMENTS"]
+        async with pg_engine.begin() as conn:
+            await conn.execute(
+                text("""INSERT INTO documents
+                (owner_user_id,vehicle_id,document_type,file_name,content_type,storage_key,
+                 review_status,upload_status,processing_status,original_file_name,created_at,updated_at)
+                VALUES (1,1,'CRLV','legacy.pdf','application/pdf','legacy-key','APPROVED',
+                        'UPLOADED','NOT_REQUESTED','legacy.pdf',now(),now())""")
+            )
+        await asyncio.to_thread(command.upgrade, config, "20261021_0006a")
+        async with pg_engine.connect() as conn:
+            assert (
+                await conn.execute(text("SELECT storage_verified FROM documents"))
+            ).scalar() is False
     finally:
         get_settings.cache_clear()
