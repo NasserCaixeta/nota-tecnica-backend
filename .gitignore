@@ -14,5 +14,11 @@ build/
 .vscode/
 .agents
 .codex
-docs/
+docs/**
+!docs/superpowers/
+!docs/superpowers/specs/
+!docs/superpowers/specs/2026-10-21-piloto-nota-tecnica-design.md
+!docs/superpowers/plans/
+docs/superpowers/plans/*
+!docs/superpowers/plans/2026-10-21-piloto-*.md
 .superpowers/
