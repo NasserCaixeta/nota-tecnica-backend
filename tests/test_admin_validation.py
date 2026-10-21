@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.security import hash_password
-from app.modules.users.models import User, UserProfileType
+from app.modules.users.models import ParticipationStatus, User, UserProfileType
 from tests.test_auth_users import login
 from tests.test_documents import document_payload
 from tests.test_maintenance import auth_headers, create_vehicle
@@ -27,6 +27,8 @@ async def create_admin_user(db_session: AsyncSession) -> None:
         state="SP",
         complement=None,
         is_active=True,
+        is_admin=True,
+        participation_status=ParticipationStatus.APPROVED,
     )
     db_session.add(admin)
     await db_session.commit()

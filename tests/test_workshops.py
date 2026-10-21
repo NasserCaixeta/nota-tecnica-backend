@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
-from tests.test_auth_users import login, register_user
+from tests.support import register_approved_user as register_user
+from tests.test_auth_users import login
 
 
 def workshop_payload(

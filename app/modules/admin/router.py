@@ -1,10 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.modules.admin.participation import review_participant, set_admin_access
+from app.modules.admin.schemas import AdminAccessUpdate, ParticipantReview
 from app.modules.admin.service import (
     list_pending_garage_vehicle_links,
     request_garage_additional_documents,
@@ -16,10 +19,52 @@ from app.modules.auth.dependencies import get_current_admin_user
 from app.modules.documents.models import DocumentReviewStatus
 from app.modules.documents.schemas import DocumentRead
 from app.modules.garage.schemas import AdminAdditionalDocumentsRequest, AdminGarageVehicleLinkRead
-from app.modules.users.models import User
+from app.modules.users.models import ParticipationStatus, User
+from app.modules.users.schemas import UserRead
+from app.modules.users.service import user_to_read
 from app.modules.vehicles.models import VerificationStatus
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/participants", response_model=list[UserRead])
+async def read_participants(
+    _: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    status_filter: Annotated[
+        ParticipationStatus, Query(alias="status")
+    ] = ParticipationStatus.PENDING,
+) -> list[UserRead]:
+    users = (
+        await session.scalars(
+            select(User)
+            .where(User.participation_status == status_filter)
+            .order_by(User.created_at, User.id)
+        )
+    ).all()
+    return [await user_to_read(session, user) for user in users]
+
+
+@router.patch("/participants/{user_id}/review", response_model=UserRead)
+async def patch_participant_review(
+    user_id: int,
+    payload: ParticipantReview,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserRead:
+    user = await review_participant(session, actor=actor, user_id=user_id, **payload.model_dump())
+    return await user_to_read(session, user)
+
+
+@router.patch("/users/{user_id}/admin-access", response_model=UserRead)
+async def patch_admin_access(
+    user_id: int,
+    payload: AdminAccessUpdate,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> UserRead:
+    user = await set_admin_access(session, actor=actor, user_id=user_id, **payload.model_dump())
+    return await user_to_read(session, user)
 
 
 class VehicleLinkReviewUpdate(BaseModel):

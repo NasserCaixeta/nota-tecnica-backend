@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.modules.auth.security import decode_access_token
-from app.modules.users.models import User, UserProfileType
+from app.modules.users.models import ParticipationStatus, User
 from app.modules.users.service import get_user_by_id
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -48,10 +48,18 @@ async def get_current_user(
     return user
 
 
-async def get_current_admin_user(
+async def get_approved_participant(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    if current_user.profile_type != UserProfileType.ADMIN:
+    if current_user.participation_status != ParticipationStatus.APPROVED:
+        raise HTTPException(status_code=403, detail="Pilot participation is not approved")
+    return current_user
+
+
+async def get_current_admin_user(
+    current_user: Annotated[User, Depends(get_approved_participant)],
+) -> User:
+    if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin users can perform this action",
