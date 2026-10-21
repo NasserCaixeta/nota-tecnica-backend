@@ -112,3 +112,15 @@ class VehicleUser(Base):
     )
 
     vehicle: Mapped[Vehicle] = relationship(back_populates="user_links")
+
+
+class GarageMembership(Base):
+    __tablename__ = "garage_memberships"
+    __table_args__ = (UniqueConstraint("user_id", "vehicle_id", name="uq_garage_membership"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )

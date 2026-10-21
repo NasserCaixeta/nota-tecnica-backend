@@ -90,7 +90,7 @@ def test_duplicate_plate_returns_conflict(client: TestClient) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Vehicle plate already registered"
+    assert response.json()["detail"] == "Vehicle already in garage"
 
 
 def test_duplicate_chassis_returns_conflict(client: TestClient) -> None:
@@ -104,7 +104,7 @@ def test_duplicate_chassis_returns_conflict(client: TestClient) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Vehicle chassis already registered"
+    assert response.json()["detail"] == "Vehicle identifiers already registered"
 
 
 def test_duplicate_renavam_returns_conflict(client: TestClient) -> None:
@@ -118,7 +118,7 @@ def test_duplicate_renavam_returns_conflict(client: TestClient) -> None:
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "Vehicle Renavam already registered"
+    assert response.json()["detail"] == "Vehicle identifiers already registered"
 
 
 def test_create_vehicle_rejects_invalid_plate_format(client: TestClient) -> None:

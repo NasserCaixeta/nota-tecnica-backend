@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,6 +50,7 @@ class GarageVehicleItem(BaseModel):
     model_year: int
     relationship_type: VehicleRelationshipType
     garage_status: GarageValidationStatus
+    commercial_access: Literal["free", "subscription", "read_only"]
     verification_rejection_reason: str | None
     review_attempts: int
     permissions: GaragePermissions

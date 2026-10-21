@@ -1,7 +1,7 @@
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, String
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -52,6 +52,9 @@ class User(Base):
     )
     participation_version: Mapped[int] = mapped_column(default=1, nullable=False)
     participation_reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    free_garage_vehicle_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vehicles.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

@@ -67,7 +67,7 @@ def test_payment_required_permissions_are_blocked() -> None:
     assert permissions.can_generate_sale_report is False
 
 
-def test_active_permissions_allow_share_and_report() -> None:
+def test_active_permissions_do_not_advertise_unimplemented_share_or_report() -> None:
     permissions = build_garage_permissions(
         GarageValidationStatus.ACTIVE,
         can_submit_review=False,
@@ -76,8 +76,8 @@ def test_active_permissions_allow_share_and_report() -> None:
     assert permissions.can_add_maintenance is True
     assert permissions.can_upload_documents is False
     assert permissions.can_submit_review is False
-    assert permissions.can_share_history is True
-    assert permissions.can_generate_sale_report is True
+    assert permissions.can_share_history is False
+    assert permissions.can_generate_sale_report is False
 
 
 def test_first_garage_vehicle_starts_pending_documents(client: TestClient) -> None:
@@ -122,9 +122,10 @@ def test_second_garage_vehicle_requires_payment(client: TestClient) -> None:
 
     assert response.status_code == 201, response.text
     data = response.json()
-    assert data["garage_status"] == "payment_required"
+    assert data["garage_status"] == "pending_documents"
+    assert data["commercial_access"] == "read_only"
     assert data["permissions"]["can_add_maintenance"] is False
-    assert data["permissions"]["can_upload_documents"] is False
+    assert data["permissions"]["can_upload_documents"] is True
 
 
 def test_garage_dashboard_returns_summary_and_empty_alerts(client: TestClient) -> None:
@@ -293,7 +294,7 @@ def test_payment_required_vehicle_cannot_add_maintenance(client: TestClient) -> 
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Garage status does not allow maintenance records"
+    assert response.json()["detail"] == "An active garage subscription is required"
 
 
 def test_under_review_vehicle_can_add_private_maintenance(client: TestClient) -> None:

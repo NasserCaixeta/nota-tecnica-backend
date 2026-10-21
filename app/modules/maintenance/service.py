@@ -4,9 +4,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.garage.policy import require_garage_write
 from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.maintenance.schemas import MaintenanceRecordCreate, MaintenanceRecordUpdate
 from app.modules.users.models import User
+from app.modules.vehicles.access import require_active_vehicle_link
 from app.modules.vehicles.models import GarageValidationStatus, Vehicle, VehicleUser
 from app.modules.workshops.models import Workshop
 
@@ -51,6 +53,7 @@ async def create_maintenance_record(
     user: User,
 ) -> MaintenanceRecord:
     await ensure_user_vehicle_link(session, vehicle_id, user)
+    await require_garage_write(session, user.id, vehicle_id)
     await ensure_workshop_exists(session, payload.workshop_id)
     record = MaintenanceRecord(
         **payload.model_dump(),
@@ -69,7 +72,7 @@ async def list_vehicle_maintenance_records(
     vehicle_id: int,
     user: User,
 ) -> list[MaintenanceRecord]:
-    await ensure_user_vehicle_link(session, vehicle_id, user)
+    await require_active_vehicle_link(session, user.id, vehicle_id)
     result = await session.execute(
         select(MaintenanceRecord)
         .where(MaintenanceRecord.vehicle_id == vehicle_id)
@@ -89,7 +92,10 @@ async def get_maintenance_record(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Maintenance record not found",
         )
-    await ensure_user_vehicle_link(session, record.vehicle_id, user)
+    if record.author_user_id == user.id:
+        await ensure_user_vehicle_link(session, record.vehicle_id, user)
+    else:
+        await require_active_vehicle_link(session, user.id, record.vehicle_id)
     return record
 
 
@@ -105,6 +111,7 @@ async def update_maintenance_record(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the maintenance author can update this record",
         )
+    await require_garage_write(session, user.id, record.vehicle_id)
     updates = payload.model_dump(exclude_unset=True)
     if "workshop_id" in updates:
         await ensure_workshop_exists(session, updates["workshop_id"])

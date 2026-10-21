@@ -87,6 +87,23 @@ def test_list_and_read_maintenance_records(client: TestClient) -> None:
     )
     record_id = created.json()["id"]
 
+    async def validate_own_relationship():
+        from sqlalchemy import select
+
+        from app.modules.vehicles.models import (
+            GarageValidationStatus,
+            VehicleUser,
+            VerificationStatus,
+        )
+
+        session = client.app.state.test_db_session
+        link = await session.scalar(select(VehicleUser).where(VehicleUser.vehicle_id == vehicle_id))
+        link.garage_status = GarageValidationStatus.ACTIVE
+        link.verification_status = VerificationStatus.VERIFIED
+        await session.commit()
+
+    client.portal.call(validate_own_relationship)
+
     list_response = client.get(
         f"/api/v1/vehicles/{vehicle_id}/maintenance-records",
         headers=headers,

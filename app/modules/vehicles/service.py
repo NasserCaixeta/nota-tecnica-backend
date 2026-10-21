@@ -4,11 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.users.models import User
 from app.modules.vehicles.models import (
-    GarageValidationStatus,
     Vehicle,
-    VehicleRelationshipType,
     VehicleUser,
-    VerificationStatus,
 )
 from app.modules.vehicles.schemas import VehicleCreate, VehicleRead
 
@@ -46,47 +43,12 @@ async def create_vehicle_for_user(
     payload: VehicleCreate,
     user: User,
 ) -> VehicleRead:
-    plate_result = await session.execute(select(Vehicle).where(Vehicle.plate == payload.plate))
-    if plate_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Vehicle plate already registered",
-        )
+    from app.modules.garage.creation import create_garage_vehicle_link
+    from app.modules.garage.schemas import GarageVehicleCreate
 
-    chassis_result = await session.execute(
-        select(Vehicle).where(Vehicle.chassis == payload.chassis)
+    vehicle, link = await create_garage_vehicle_link(
+        session, GarageVehicleCreate(**payload.model_dump()), user
     )
-    if chassis_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Vehicle chassis already registered",
-        )
-
-    renavam_result = await session.execute(
-        select(Vehicle).where(Vehicle.renavam == payload.renavam)
-    )
-    if renavam_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Vehicle Renavam already registered",
-        )
-
-    vehicle = Vehicle(**payload.model_dump())
-    session.add(vehicle)
-    await session.flush()
-
-    link = VehicleUser(
-        vehicle_id=vehicle.id,
-        user_id=user.id,
-        relationship_type=VehicleRelationshipType.OWNER,
-        verification_status=VerificationStatus.PENDING,
-        garage_status=GarageValidationStatus.PENDING_DOCUMENTS,
-        review_attempts=0,
-    )
-    session.add(link)
-    await session.commit()
-    await session.refresh(vehicle)
-
     return build_vehicle_read(vehicle, link)
 
 
