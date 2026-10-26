@@ -1,6 +1,6 @@
 # Prévia e ranking explicável — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans or, if chosen by the user, superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans or, if chosen by the user, superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Expor prévia sem dados privados e classificar oficinas por serviços elegíveis, com fórmula reproduzível.
 
@@ -28,11 +28,11 @@ Aplicam-se P00–P03. Sem histórico completo de terceiros até P05. Preço e re
 
 **Interfaces:** `PublishedMaintenanceRead` contém só identificador do serviço, data, odômetro, categoria/sistema, `public_description`, oficina pública e custos; nunca identidade pessoal, documentos, chassi ou Renavam. `build_published_maintenance_read(record, revision, workshop) -> PublishedMaintenanceRead`. Manter rota de prévia existente e seu envelope, com `vehicle_found` refletindo disponibilidade pública, não cadastro privado.
 
-- [ ] Testar que veículo conhecido sem serviço elegível e placa desconhecida têm prévia neutra equivalente, salvo a própria placa. Testar serialização: `assert private_fields.isdisjoint(payload.keys())`; inserir CPF/endereço na descrição privada e garantir que só `public_description` aprovada aparece. Contestação reduz contagem e altera datas imediatamente.
-- [ ] Executar `uv run pytest tests/test_public_history_privacy.py tests/test_public_history_preview.py -q`; confirmar falhas dos novos casos.
-- [ ] Implementar agregações com P03, somente campos permitidos; não devolver lista de serviços no endpoint público. Não cobrar nem oferecer compra quando não houver histórico. Interface explica que a prévia não é relatório completo e que o checkout será de testes quando P05 estiver disponível.
-- [ ] Executar testes direcionados e testes da página pública em F:, incluindo falha de rede e placa inválida sem resultado anterior enganoso.
-- [ ] Commit sugerido: `fix: expose only eligible vehicle history previews`.
+- [x] Testar que veículo conhecido sem serviço elegível e placa desconhecida têm prévia neutra equivalente, salvo a própria placa. Testar serialização: `assert private_fields.isdisjoint(payload.keys())`; inserir CPF/endereço na descrição privada e garantir que só `public_description` aprovada aparece. Contestação reduz contagem e altera datas imediatamente.
+- [x] Executar `uv run pytest tests/test_public_history_privacy.py tests/test_public_history_preview.py -q`; confirmar falhas dos novos casos.
+- [x] Implementar agregações com P03, somente campos permitidos; não devolver lista de serviços no endpoint público. Não cobrar nem oferecer compra quando não houver histórico. Interface explica que a prévia não é relatório completo e que o checkout será de testes quando P05 estiver disponível.
+- [x] Executar testes direcionados e testes da página pública em F:, incluindo falha de rede e placa inválida sem resultado anterior enganoso.
+- [x] Commit sugerido: `fix: expose only eligible vehicle history previews`.
 
 ### Task 2 — T2: Avaliação vinculada e fórmula versionada
 

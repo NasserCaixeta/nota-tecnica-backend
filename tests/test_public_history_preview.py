@@ -19,7 +19,7 @@ def test_existing_plate_without_maintenance_returns_empty_preview(client: TestCl
     response = client.get("/api/v1/public/vehicles/ABC1D23/history-preview")
 
     assert response.status_code == 200
-    assert response.json()["vehicle_found"] is True
+    assert response.json()["vehicle_found"] is False
     assert response.json()["maintenance_count"] == 0
     assert response.json()["completeness_score"] == "none"
 

@@ -55,7 +55,7 @@ async def get_vehicle_history_preview(session: AsyncSession, plate: str) -> Vehi
     workshop_ids = {record.workshop_id for record in records if record.workshop_id is not None}
     return VehicleHistoryPreview(
         plate=normalized_plate,
-        vehicle_found=True,
+        vehicle_found=bool(records),
         maintenance_count=len(records),
         first_maintenance_date=min(dates) if dates else None,
         last_maintenance_date=max(dates) if dates else None,
