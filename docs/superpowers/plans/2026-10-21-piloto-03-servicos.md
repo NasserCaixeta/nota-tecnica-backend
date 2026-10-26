@@ -76,10 +76,10 @@ Aplicam-se P00–P02. Todo serviço exige comprovante e análise de sua versão 
 
 **Interfaces:** corrigir cliente HTTP para `/vehicles/{id}/maintenance-records`, `service_date`, IDs numéricos e custos decimais serializados como strings. Oficina usa `POST /workshops/{id}/maintenance-records` e `GET /workshops/{id}/maintenance-records`; criar essas rotas no backend durante T2 se ainda não expostas. Detalhe separa visão privada do serviço e a futura projeção comprada.
 
-- [ ] Testar: formulário válido envia categoria, sistema, data e valores separados; timeline carrega a resposta real. Oficina vê somente seus atendimentos e pendências; cliente confirma versão correta ou contesta com motivo. Convite aguarda conta/vínculo em vez de mostrar sucesso falso. Admin abre comprovante e decide; 409 pede atualizar a versão.
-- [ ] Executar em F: `npm run test -- --run src/features/maintenance src/features/workshops src/features/admin`; confirmar os comportamentos novos falhando antes da conexão.
-- [ ] Conectar upload e submissão do cliente, painel da oficina, convite, reconhecimento, correção e filas administrativas. Usar permissões do servidor; distinguir rascunho, análise pendente, confirmação pendente, contestado e publicado. Em retomada de convite, limpar o fragmento da URL depois de capturá-lo, sem persistir token em analytics ou logs.
-- [ ] Executar verificações completas de P00 e acompanhar ambas as origens, incluindo cliente sem conta, duplicidade e contestação após confirmação.
-- [ ] Commit sugerido em cada repo alterado: `feat: connect workshop and customer service journeys`.
+- [x] Testar: formulário válido envia categoria, sistema, data e valores separados; timeline carrega a resposta real. Oficina vê somente seus atendimentos e pendências; cliente confirma versão correta ou contesta com motivo. Convite aguarda conta/vínculo em vez de mostrar sucesso falso. Admin abre comprovante e decide; 409 pede atualizar a versão.
+- [x] Executar em F: `npm run test -- --run src/features/maintenance src/features/workshops src/features/admin`; confirmar os comportamentos novos falhando antes da conexão.
+- [x] Conectar upload e submissão do cliente, painel da oficina, convite, reconhecimento, correção e filas administrativas. Usar permissões do servidor; distinguir rascunho, análise pendente, confirmação pendente, contestado e publicado. Em retomada de convite, limpar o fragmento da URL depois de capturá-lo, sem persistir token em analytics ou logs.
+- [x] Executar verificações completas de P00 e acompanhar ambas as origens, incluindo cliente sem conta, duplicidade e contestação após confirmação.
+- [x] Commit sugerido em cada repo alterado: `feat: connect workshop and customer service journeys`.
 
 **Saída:** serviços comprovados e moderados publicam somente na versão reconhecida; P04 pode consumir a seleção canônica sem reinventar a regra.

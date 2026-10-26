@@ -125,3 +125,23 @@ def test_invitation_validation_does_not_create_a_garage_slot(client):
     assert r.json()["vehicle_id"] == record["vehicle_id"]
     assert client.get("/api/v1/garage", headers=customer).json()["vehicles"] == []
     assert accept(client, invitation, customer).json()["state"] == "relationship_required"
+
+
+def test_invitation_intent_can_resume_after_navigation_without_exposing_token_in_lists(client):
+    h, record = workshop_service(client)
+    invitation = issue_invitation(client, h, record)
+    customer = auth_headers(client, email="other@example.com", cpf="39053344705")
+    assert accept(client, invitation, customer).json()["state"] == "relationship_required"
+    pending = client.get("/api/v1/service-invitations/pending", headers=customer)
+    assert pending.status_code == 200, pending.text
+    assert pending.json()[0]["id"] == invitation["id"]
+    assert invitation["token"] not in pending.text
+    resumed = client.post(
+        f"/api/v1/service-invitations/{invitation['id']}/resume", headers=customer
+    )
+    assert resumed.status_code == 200
+    assert resumed.json()["state"] == "relationship_required"
+    assert (
+        client.post(f"/api/v1/service-invitations/{invitation['id']}/resume", headers=h).status_code
+        == 404
+    )

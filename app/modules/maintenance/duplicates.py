@@ -1,7 +1,8 @@
 from fastapi import HTTPException
+from sqlalchemy import or_, select
 
 from app.modules.audit.service import append_audit
-from app.modules.maintenance.models import ServiceDuplicateProposal
+from app.modules.maintenance.models import MaintenanceRecord, ServiceDuplicateProposal
 from app.modules.maintenance.revisions import create_revision, locked_record
 from app.modules.maintenance.service import get_maintenance_record
 
@@ -38,6 +39,21 @@ async def associate_service(session, record_id, payload, actor):
     session.add(proposal)
     await session.flush()
     if actor.is_admin:
+        previous = (
+            await session.scalars(
+                select(ServiceDuplicateProposal).where(
+                    or_(
+                        (ServiceDuplicateProposal.record_id == first.id)
+                        & (ServiceDuplicateProposal.other_record_id == second.id),
+                        (ServiceDuplicateProposal.record_id == second.id)
+                        & (ServiceDuplicateProposal.other_record_id == first.id),
+                    ),
+                    ServiceDuplicateProposal.status == "pending",
+                )
+            )
+        ).all()
+        for item in previous:
+            item.status = "resolved"
         second.superseded_by_id = first.id
         revision = await create_revision(session, first, actor_id=actor.id)
         # Consolidation never lets an administrator acknowledge data on the customer's behalf.
@@ -53,3 +69,27 @@ async def associate_service(session, record_id, payload, actor):
     )
     await session.commit()
     return first
+
+
+async def duplicate_candidates(session, record_id, actor):
+    record = await get_maintenance_record(session, record_id, actor)
+    candidates = (
+        await session.scalars(
+            select(MaintenanceRecord)
+            .where(
+                MaintenanceRecord.vehicle_id == record.vehicle_id,
+                MaintenanceRecord.service_date == record.service_date,
+                MaintenanceRecord.id != record.id,
+                MaintenanceRecord.superseded_by_id.is_(None),
+            )
+            .order_by(MaintenanceRecord.id)
+        )
+    ).all()
+    visible = []
+    for candidate in candidates:
+        try:
+            await get_maintenance_record(session, candidate.id, actor)
+        except HTTPException:
+            continue
+        visible.append(candidate)
+    return visible

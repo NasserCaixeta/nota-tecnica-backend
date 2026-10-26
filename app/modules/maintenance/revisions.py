@@ -58,7 +58,7 @@ async def create_revision(session, record, *, actor_id):
     return revision
 
 
-async def record_to_read(session, record):
+async def record_to_read(session, record, actor=None):
     revision = await current_revision(session, record)
     public_id = await session.scalar(
         published_maintenance_select()
@@ -80,4 +80,33 @@ async def record_to_read(session, record):
         "review_reason",
     ):
         values[key] = getattr(revision, key)
-    return MaintenanceRecordRead(**values, published=public_id is not None)
+    permissions = dict.fromkeys(
+        ("can_edit", "can_submit", "can_acknowledge", "can_dispute", "can_invite"), False
+    )
+    if actor is not None and record.superseded_by_id is None:
+        from app.modules.garage.policy import require_garage_write
+        from app.modules.maintenance.service import can_operate_record
+        from app.modules.vehicles.access import require_active_vehicle_link
+
+        try:
+            await can_operate_record(session, record, actor)
+            if record.origin == "customer":
+                await require_garage_write(session, actor.id, record.vehicle_id)
+            permissions["can_edit"] = True
+            permissions["can_invite"] = record.origin == "workshop"
+            if record.origin == "customer":
+                await require_active_vehicle_link(session, actor.id, record.vehicle_id)
+            permissions["can_submit"] = revision.editorial_status == "draft"
+        except HTTPException:
+            pass
+        if revision.customer_user_id == actor.id:
+            try:
+                await require_active_vehicle_link(session, actor.id, record.vehicle_id)
+                permissions["can_dispute"] = not record.dispute_open
+                permissions["can_acknowledge"] = (
+                    not record.dispute_open
+                    and revision.customer_acknowledgement == "awaiting_customer"
+                )
+            except HTTPException:
+                pass
+    return MaintenanceRecordRead(**values, published=public_id is not None, permissions=permissions)

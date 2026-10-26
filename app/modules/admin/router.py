@@ -20,7 +20,7 @@ from app.modules.auth.dependencies import get_current_admin_user
 from app.modules.documents.schemas import DocumentRead, DocumentReviewUpdate
 from app.modules.garage.schemas import AdminAdditionalDocumentsRequest, AdminGarageVehicleLinkRead
 from app.modules.maintenance.disputes import dispute_to_read, review_dispute
-from app.modules.maintenance.models import ServiceDispute
+from app.modules.maintenance.models import ServiceDispute, ServiceDuplicateProposal
 from app.modules.maintenance.moderation import (
     pending_maintenance,
     review_maintenance,
@@ -276,3 +276,31 @@ async def patch_service_dispute(
     return await dispute_to_read(
         session, await review_dispute(session, dispute_id, payload, actor), actor
     )
+
+
+@router.get("/service-associations")
+async def read_service_associations(
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    items = (
+        await session.scalars(
+            select(ServiceDuplicateProposal)
+            .where(ServiceDuplicateProposal.status == "pending")
+            .order_by(ServiceDuplicateProposal.id)
+        )
+    ).all()
+    result = []
+    for item in items:
+        first = await get_maintenance_record(session, item.record_id, actor)
+        second = await get_maintenance_record(session, item.other_record_id, actor)
+        if first.superseded_by_id is None and second.superseded_by_id is None:
+            result.append(
+                {
+                    "id": item.id,
+                    "reason": item.reason,
+                    "record": await record_to_read(session, first),
+                    "other_record": await record_to_read(session, second),
+                }
+            )
+    return result

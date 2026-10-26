@@ -143,3 +143,29 @@ async def test_two_origins_consolidate_into_one_public_identity(client, db_sessi
         client.get("/api/v1/public/vehicles/ABC1D23/history-preview").json()["maintenance_count"]
         == 1
     )
+
+
+def test_duplicate_candidates_never_expose_another_senders_private_draft(client):
+    from tests.test_maintenance import maintenance_payload
+    from tests.test_maintenance_moderation import activate_link, approve_workshop_for_test
+    from tests.test_vehicles import vehicle_payload
+
+    owner = auth_headers(client)
+    v = create_vehicle(client, owner)
+    own = create_record(client, owner, v)
+    office = approve_workshop_for_test(client, owner)
+    hidden = client.post(
+        f"/api/v1/workshops/{office}/maintenance-records",
+        headers=owner,
+        json={**maintenance_payload(), "plate": "ABC1D23"},
+    ).json()
+    other = auth_headers(client, email="other@example.com", cpf="39053344705")
+    client.post("/api/v1/garage/vehicles", headers=other, json=vehicle_payload())
+    activate_link(client, v, "other@example.com")
+    other_own = create_record(client, other, v)
+    candidates = client.get(
+        f"/api/v1/maintenance-records/{other_own['id']}/duplicates", headers=other
+    )
+    assert candidates.status_code == 200, candidates.text
+    assert hidden["id"] not in [item["id"] for item in candidates.json()]
+    assert own["id"] not in [item["id"] for item in candidates.json()]

@@ -255,3 +255,23 @@ def test_active_vehicle_link_does_not_expose_other_authors_private_drafts(client
         client.get(f"/api/v1/maintenance-records/{r.json()['id']}", headers=other).status_code
         == 404
     )
+
+
+def test_service_detail_exposes_server_permissions_and_only_senders_documents(client):
+    h = auth_headers(client)
+    v = create_vehicle(client, h)
+    record = create_record(client, h, v)
+    detail = client.get(f"/api/v1/maintenance-records/{record['id']}", headers=h).json()
+    assert detail["permissions"] == {
+        "can_edit": True,
+        "can_submit": False,
+        "can_acknowledge": False,
+        "can_dispute": False,
+        "can_invite": False,
+    }
+    proof = create_uploaded_document(
+        client, v, h, maintenance_record_id=record["id"], document_type="invoice"
+    )
+    documents = client.get(f"/api/v1/maintenance-records/{record['id']}/documents", headers=h)
+    assert documents.status_code == 200
+    assert documents.json()[0]["id"] == proof["id"]

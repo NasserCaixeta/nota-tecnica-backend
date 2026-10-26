@@ -94,6 +94,7 @@ class MaintenanceRecordRead(BaseModel):
     published: bool
     superseded_by_id: int | None
     dispute_open: bool
+    permissions: dict[str, bool]
 
 
 class MaintenanceSubmit(BaseModel):
