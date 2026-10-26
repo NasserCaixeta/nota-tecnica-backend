@@ -1,6 +1,6 @@
 # Oficinas, serviços e moderação — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans or, if chosen by the user, superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans or, if chosen by the user, superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Publicar uma única manutenção comprovada e reconhecida, com origem cliente ou oficina e contestação auditável.
 
@@ -28,11 +28,11 @@ Aplicam-se P00–P02. Todo serviço exige comprovante e análise de sua versão 
 
 **Interfaces:** `WorkshopClaim` identifica solicitante, oficina, documentos, versão, decisão e motivo. `POST /workshops/{id}/claims`, `GET /workshops/claims/me`, `GET /admin/workshop-claims`, `PATCH /admin/workshop-claims/{id}/review`; revisão recebe `expected_version`. `POST /workshop-claims/{id}/documents/upload-intents` reutiliza inspeção e leitura de P02. Produzir `require_workshop_responsibility(session, user_id: int, workshop_id: int) -> WorkshopUser`.
 
-- [ ] Testar que CNPJ cadastrado abre reivindicação sem segunda oficina; oficina de referência criada por cliente não aparece como gerenciada; aprovação da pessoa não aprova representação. Conta cliente aprovada reivindica e mantém garagem após aprovação. Outro solicitante não lê comprovante; admin não aprova sua própria oficina. `assert workshop_count == 1` e `assert managed_before == []`.
-- [ ] Executar `uv run pytest tests/test_workshop_claims.py tests/test_workshops.py -q`; confirmar falhas esperadas.
-- [ ] Acrescentar alvo de documento para `workshop_claim_id`, tornando veículo opcional somente nesse propósito com constraint de alvo válido. Oficina `owner_claimed` não cria responsável verificado automaticamente. Cadastro frontend envia endereço e `source` explícitos; fonte não concede autoridade. Perfil público usa a implementação conectada em `features/workshops`, com contato comercial público; dados de representação ficam privados.
-- [ ] Executar testes backend e `npm run test -- --run src/features/workshops/pages/WorkshopClaimPage.test.tsx` em F:. Conferir aprovação separada e perfil público real.
-- [ ] Commit sugerido: `feat: add moderated workshop ownership claims` em cada repositório alterado.
+- [x] Testar que CNPJ cadastrado abre reivindicação sem segunda oficina; oficina de referência criada por cliente não aparece como gerenciada; aprovação da pessoa não aprova representação. Conta cliente aprovada reivindica e mantém garagem após aprovação. Outro solicitante não lê comprovante; admin não aprova sua própria oficina. `assert workshop_count == 1` e `assert managed_before == []`.
+- [x] Executar `uv run pytest tests/test_workshop_claims.py tests/test_workshops.py -q`; confirmar falhas esperadas.
+- [x] Acrescentar alvo de documento para `workshop_claim_id`, tornando veículo opcional somente nesse propósito com constraint de alvo válido. Oficina `owner_claimed` não cria responsável verificado automaticamente. Cadastro frontend envia endereço e `source` explícitos; fonte não concede autoridade. Perfil público usa a implementação conectada em `features/workshops`, com contato comercial público; dados de representação ficam privados.
+- [x] Executar testes backend e `npm run test -- --run src/features/workshops/pages/WorkshopClaimPage.test.tsx` em F:. Conferir aprovação separada e perfil público real.
+- [x] Commit sugerido: `feat: add moderated workshop ownership claims` em cada repositório alterado.
 
 ### Task 2 — T2: Revisões e política única de publicação
 

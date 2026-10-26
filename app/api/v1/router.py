@@ -10,6 +10,7 @@ from app.modules.public.router import router as public_router
 from app.modules.ranking.router import router as ranking_router
 from app.modules.users.router import router as users_router
 from app.modules.vehicles.router import router as vehicles_router
+from app.modules.workshops.claims_router import router as workshop_claims_router
 from app.modules.workshops.router import router as workshops_router
 
 router = APIRouter()
@@ -19,6 +20,7 @@ router.include_router(auth_router)
 router.include_router(users_router)
 router.include_router(vehicles_router)
 router.include_router(workshops_router)
+router.include_router(workshop_claims_router)
 router.include_router(maintenance_router)
 router.include_router(documents_router)
 router.include_router(garage_router)

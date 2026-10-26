@@ -49,7 +49,8 @@ class DocumentRead(BaseModel):
 
     id: int
     owner_user_id: int
-    vehicle_id: int
+    vehicle_id: int | None
+    workshop_claim_id: int | None
     maintenance_record_id: int | None
     vehicle_link_id: int | None
     document_type: DocumentType

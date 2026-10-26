@@ -2,7 +2,16 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -55,12 +64,25 @@ class ValidationDocumentType(StrEnum):
 
 class Document(Base):
     __tablename__ = "documents"
+    __table_args__ = (
+        CheckConstraint(
+            "(vehicle_id IS NOT NULL AND workshop_claim_id IS NULL) OR "
+            "(vehicle_id IS NULL AND workshop_claim_id IS NOT NULL AND vehicle_link_id IS NULL "
+            "AND maintenance_record_id IS NULL)",
+            name="ck_document_subject",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     storage_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     review_version: Mapped[int] = mapped_column(default=1, nullable=False)
     owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False, index=True)
+    vehicle_id: Mapped[int | None] = mapped_column(
+        ForeignKey("vehicles.id"), nullable=True, index=True
+    )
+    workshop_claim_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workshop_claims.id"), nullable=True
+    )
     maintenance_record_id: Mapped[int | None] = mapped_column(
         ForeignKey("maintenance_records.id"),
         nullable=True,

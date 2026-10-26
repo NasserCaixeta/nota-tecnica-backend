@@ -90,7 +90,20 @@ async def review_document(
     document = await session.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    claim = None
     link = None
+    if document.workshop_claim_id is not None:
+        from app.modules.workshops.claims import latest_claim_documents
+        from app.modules.workshops.models import WorkshopClaim
+
+        claim = await session.scalar(
+            select(WorkshopClaim)
+            .where(WorkshopClaim.id == document.workshop_claim_id)
+            .with_for_update()
+        )
+        latest = await latest_claim_documents(session, claim.id)
+        if document.id not in {item.id for item in latest}:
+            raise HTTPException(status_code=409, detail="This evidence has been replaced")
     if document.vehicle_link_id is not None:
         _, link = await locked_vehicle_link(session, document.vehicle_link_id)
         latest = await latest_validation_documents(session, link)
@@ -129,6 +142,20 @@ async def review_document(
             link.garage_status = GarageValidationStatus.PENDING_DOCUMENTS
             link.verification_status = VerificationStatus.PENDING
             link.verification_rejection_reason = rejection_reason
+    if claim is not None:
+        claim.review_version += 1
+        if review_status == DocumentReviewStatus.REJECTED:
+            from app.modules.workshops.models import WorkshopUser
+
+            claim.status = VerificationStatus.PENDING
+            member = await session.scalar(
+                select(WorkshopUser).where(
+                    WorkshopUser.user_id == claim.user_id,
+                    WorkshopUser.workshop_id == claim.workshop_id,
+                )
+            )
+            if member is not None:
+                member.verification_status = VerificationStatus.PENDING
     await append_audit(
         session,
         actor_id=actor.id,

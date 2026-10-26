@@ -2,13 +2,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.users.models import User, UserProfileType
+from app.modules.users.models import User
 from app.modules.vehicles.models import VerificationStatus
 from app.modules.workshops.models import (
     Workshop,
     WorkshopSource,
     WorkshopUser,
-    WorkshopUserRole,
 )
 from app.modules.workshops.schemas import ManagedWorkshopRead, WorkshopCreate, WorkshopRead
 
@@ -48,15 +47,6 @@ async def create_workshop_for_user(
             detail="Workshop CNPJ already registered",
         )
 
-    if (
-        payload.source == WorkshopSource.OWNER_CLAIMED
-        and user.profile_type != UserProfileType.WORKSHOP_OWNER
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only workshop owners can claim a workshop",
-        )
-
     workshop = Workshop(
         legal_name=payload.legal_name,
         trade_name=payload.trade_name,
@@ -79,14 +69,9 @@ async def create_workshop_for_user(
     await session.flush()
 
     if payload.source == WorkshopSource.OWNER_CLAIMED:
-        session.add(
-            WorkshopUser(
-                workshop_id=workshop.id,
-                user_id=user.id,
-                role=WorkshopUserRole.OWNER,
-                verification_status=VerificationStatus.PENDING,
-            )
-        )
+        from app.modules.workshops.claims import create_workshop_claim
+
+        await create_workshop_claim(session, workshop.id, user, commit=False)
 
     await session.commit()
     await session.refresh(workshop)
@@ -94,13 +79,17 @@ async def create_workshop_for_user(
 
 
 async def list_workshops(session: AsyncSession) -> list[WorkshopRead]:
-    result = await session.execute(select(Workshop).order_by(Workshop.id))
+    result = await session.execute(
+        select(Workshop)
+        .where(Workshop.verification_status == VerificationStatus.VERIFIED)
+        .order_by(Workshop.id)
+    )
     return [workshop_to_read(workshop) for workshop in result.scalars().all()]
 
 
 async def get_workshop(session: AsyncSession, workshop_id: int) -> WorkshopRead:
     workshop = await session.get(Workshop, workshop_id)
-    if workshop is None:
+    if workshop is None or workshop.verification_status != VerificationStatus.VERIFIED:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workshop not found")
     return workshop_to_read(workshop)
 
@@ -109,7 +98,11 @@ async def list_managed_workshops(session: AsyncSession, user: User) -> list[Mana
     result = await session.execute(
         select(Workshop, WorkshopUser)
         .join(WorkshopUser, WorkshopUser.workshop_id == Workshop.id)
-        .where(WorkshopUser.user_id == user.id)
+        .where(
+            WorkshopUser.user_id == user.id,
+            WorkshopUser.verification_status == VerificationStatus.VERIFIED,
+            Workshop.verification_status == VerificationStatus.VERIFIED,
+        )
         .order_by(Workshop.id)
     )
     return [

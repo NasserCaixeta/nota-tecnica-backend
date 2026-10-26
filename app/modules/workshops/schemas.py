@@ -3,11 +3,13 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.validators import validate_cnpj
+from app.modules.documents.schemas import DocumentRead
 from app.modules.vehicles.models import VerificationStatus
 from app.modules.workshops.models import WorkshopSource, WorkshopUserRole
 
 
 class WorkshopCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     legal_name: str = Field(min_length=1, max_length=255)
     trade_name: str = Field(min_length=1, max_length=255)
     cnpj: str
@@ -64,3 +66,24 @@ class WorkshopRead(BaseModel):
 
 class ManagedWorkshopRead(WorkshopRead):
     role: WorkshopUserRole
+
+
+class WorkshopClaimRead(BaseModel):
+    id: int
+    workshop_id: int
+    user_id: int
+    user_full_name: str
+    trade_name: str
+    cnpj: str
+    status: VerificationStatus
+    review_version: int
+    reason: str | None
+    documents: list[DocumentRead]
+
+
+class WorkshopClaimReview(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: VerificationStatus
+    expected_version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=1000, pattern=r"\S")

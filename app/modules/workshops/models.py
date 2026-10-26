@@ -94,3 +94,22 @@ class WorkshopUser(Base):
     )
 
     workshop: Mapped[Workshop] = relationship(back_populates="user_links")
+
+
+class WorkshopClaim(Base):
+    __tablename__ = "workshop_claims"
+    __table_args__ = (UniqueConstraint("workshop_id", "user_id", name="uq_workshop_claim"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workshop_id: Mapped[int] = mapped_column(ForeignKey("workshops.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    status: Mapped[VerificationStatus] = mapped_column(
+        Enum(VerificationStatus, native_enum=False),
+        default=VerificationStatus.PENDING,
+        nullable=False,
+    )
+    review_version: Mapped[int] = mapped_column(default=1, nullable=False)
+    reason: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )

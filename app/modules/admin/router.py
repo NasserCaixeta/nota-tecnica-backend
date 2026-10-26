@@ -23,6 +23,7 @@ from app.modules.users.models import ParticipationStatus, User
 from app.modules.users.schemas import UserRead
 from app.modules.users.service import user_to_read
 from app.modules.vehicles.models import VerificationStatus
+from app.modules.workshops.schemas import WorkshopClaimReview
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -169,3 +170,33 @@ async def read_garage_vehicle_link_detail(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> AdminGarageVehicleLinkRead:
     return await get_admin_garage_vehicle_link(session, vehicle_link_id)
+
+
+@router.get("/workshop-claims")
+async def read_workshop_claims(
+    _: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    from app.modules.workshops.claims import claim_to_read
+    from app.modules.workshops.models import WorkshopClaim
+
+    claims = (
+        await session.scalars(
+            select(WorkshopClaim)
+            .where(WorkshopClaim.status == VerificationStatus.PENDING)
+            .order_by(WorkshopClaim.created_at, WorkshopClaim.id)
+        )
+    ).all()
+    return [await claim_to_read(session, claim) for claim in claims]
+
+
+@router.patch("/workshop-claims/{claim_id}/review")
+async def patch_workshop_claim(
+    claim_id: int,
+    payload: WorkshopClaimReview,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    from app.modules.workshops.claims import review_workshop_claim
+
+    return await review_workshop_claim(session, claim_id, payload, actor)

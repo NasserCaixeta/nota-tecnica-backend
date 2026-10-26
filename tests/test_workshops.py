@@ -78,12 +78,15 @@ def test_workshop_owner_can_create_owner_claimed_workshop(client: TestClient) ->
 
     managed = client.get("/api/v1/workshops/me", headers={"Authorization": f"Bearer {token}"})
     assert managed.status_code == 200
-    assert len(managed.json()) == 1
-    assert managed.json()[0]["role"] == "owner"
-    assert managed.json()[0]["verification_status"] == "pending"
+    assert managed.json() == []
+    claims = client.get("/api/v1/workshops/claims/me", headers={"Authorization": f"Bearer {token}"})
+    assert claims.status_code == 200
+    assert len(claims.json()) == 1
 
 
-def test_customer_cannot_create_owner_claimed_workshop(client: TestClient) -> None:
+def test_customer_can_request_workshop_representation_without_changing_profile(
+    client: TestClient,
+) -> None:
     token = token_for(
         client,
         email="customer@example.com",
@@ -97,8 +100,8 @@ def test_customer_cannot_create_owner_claimed_workshop(client: TestClient) -> No
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Only workshop owners can claim a workshop"
+    assert response.status_code == 201
+    assert response.json()["verification_status"] == "pending"
 
 
 def test_duplicate_cnpj_returns_conflict(client: TestClient) -> None:
@@ -124,7 +127,7 @@ def test_duplicate_cnpj_returns_conflict(client: TestClient) -> None:
     assert response.json()["detail"] == "Workshop CNPJ already registered"
 
 
-def test_public_workshop_list_and_detail(client: TestClient) -> None:
+def test_pending_workshop_is_not_a_public_verified_profile(client: TestClient) -> None:
     token = token_for(
         client,
         email="customer@example.com",
@@ -142,9 +145,8 @@ def test_public_workshop_list_and_detail(client: TestClient) -> None:
     detail_response = client.get(f"/api/v1/workshops/{workshop_id}")
 
     assert list_response.status_code == 200
-    assert len(list_response.json()) == 1
-    assert detail_response.status_code == 200
-    assert detail_response.json()["id"] == workshop_id
+    assert list_response.json() == []
+    assert detail_response.status_code == 404
 
 
 def test_create_workshop_rejects_invalid_cnpj(client: TestClient) -> None:
