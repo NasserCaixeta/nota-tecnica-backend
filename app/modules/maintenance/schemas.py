@@ -2,9 +2,10 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.core.validators import validate_brazilian_plate
+from app.modules.garage.schemas import GarageVehicleCreate
 from app.modules.maintenance.models import MaintenanceCategory, MaintenanceStatus, VehicleSystem
 
 
@@ -91,6 +92,8 @@ class MaintenanceRecordRead(BaseModel):
     public_description: str | None
     review_reason: str | None
     published: bool
+    superseded_by_id: int | None
+    dispute_open: bool
 
 
 class MaintenanceSubmit(BaseModel):
@@ -103,4 +106,24 @@ class MaintenanceReview(MaintenanceSubmit):
     decision: Literal["approved", "rejected", "changes_requested"]
     reason: str = Field(min_length=1, max_length=2000)
     public_description: str | None = Field(default=None, min_length=1, max_length=2000)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class InvitationCreate(MaintenanceSubmit):
+    recipient_email: EmailStr
+
+
+class InvitationAccept(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    token: str = Field(min_length=64, max_length=256)
+
+
+class InvitationRelationship(InvitationAccept):
+    vehicle: GarageVehicleCreate
+
+
+class ServiceAssociation(MaintenanceSubmit):
+    other_record_id: int = Field(ge=1)
+    other_revision_id: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=2000)
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)

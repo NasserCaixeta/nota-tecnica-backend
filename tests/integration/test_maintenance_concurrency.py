@@ -124,3 +124,33 @@ async def test_failed_audit_rolls_back_service_decision(pg_engine, monkeypatch):
             )
             == 0
         )
+
+
+async def test_two_customer_confirmations_create_one_acknowledgement(pg_engine):
+    from app.modules.maintenance.acknowledgements import acknowledge_service
+    from app.modules.vehicles.models import GarageValidationStatus, VehicleUser, VerificationStatus
+
+    factory, record_id, revision_id = await prepare_service(pg_engine)
+    async with factory() as session:
+        revision = await session.get(MaintenanceRevision, revision_id)
+        revision.customer_acknowledgement = "awaiting_customer"
+        link = await session.scalar(select(VehicleUser).where(VehicleUser.user_id == 3))
+        link.verification_status = VerificationStatus.VERIFIED
+        link.garage_status = GarageValidationStatus.ACTIVE
+        await session.commit()
+
+    async def confirm():
+        async with factory() as session:
+            actor = await session.get(User, 3)
+            await acknowledge_service(session, record_id, revision_id, actor)
+
+    await asyncio.gather(confirm(), confirm())
+    async with factory() as session:
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "maintenance.acknowledge")
+            )
+            == 1
+        )

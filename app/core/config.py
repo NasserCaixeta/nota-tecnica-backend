@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     )
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    invitation_secret_key: str = Field(default="", alias="INVITATION_SECRET_KEY")
+    frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
 
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")

@@ -137,3 +137,47 @@ class MaintenanceRevision(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+
+
+class ServiceInvitation(Base):
+    __tablename__ = "service_invitations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"), index=True)
+    revision_id: Mapped[int] = mapped_column(ForeignKey("maintenance_revisions.id"))
+    recipient_email: Mapped[str] = mapped_column(String(255))
+    nonce: Mapped[str] = mapped_column(String(64), unique=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consumed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class InvitationIntent(Base):
+    __tablename__ = "invitation_intents"
+    __table_args__ = (UniqueConstraint("invitation_id", "user_id", name="uq_invitation_intent"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    invitation_id: Mapped[int] = mapped_column(ForeignKey("service_invitations.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class ServiceDuplicateProposal(Base):
+    __tablename__ = "service_duplicate_proposals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"))
+    other_record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"))
+    revision_id: Mapped[int] = mapped_column(ForeignKey("maintenance_revisions.id"))
+    other_revision_id: Mapped[int] = mapped_column(ForeignKey("maintenance_revisions.id"))
+    proposed_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(24), default="pending")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
