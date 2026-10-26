@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import get_approved_participant
 from app.modules.users.models import User
 from app.modules.workshops.schemas import ManagedWorkshopRead, WorkshopCreate, WorkshopRead
 from app.modules.workshops.service import (
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/workshops", tags=["workshops"])
 @router.post("", response_model=WorkshopRead, status_code=status.HTTP_201_CREATED)
 async def create_workshop(
     payload: WorkshopCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> WorkshopRead:
     return await create_workshop_for_user(session, payload, current_user)
@@ -35,7 +35,7 @@ async def read_workshops(
 
 @router.get("/me", response_model=list[ManagedWorkshopRead])
 async def read_managed_workshops(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[ManagedWorkshopRead]:
     return await list_managed_workshops(session, current_user)

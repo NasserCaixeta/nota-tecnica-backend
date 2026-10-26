@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.security import hash_password
-from app.modules.users.models import User, UserProfileType
+from app.modules.users.models import ParticipationStatus, User, UserProfileType
 from tests.test_auth_users import login
-from tests.test_documents import document_payload
+from tests.test_documents import create_uploaded_document
 from tests.test_maintenance import auth_headers, create_vehicle
 
 
@@ -27,12 +27,14 @@ async def create_admin_user(db_session: AsyncSession) -> None:
         state="SP",
         complement=None,
         is_active=True,
+        is_admin=True,
+        participation_status=ParticipationStatus.APPROVED,
     )
     db_session.add(admin)
     await db_session.commit()
 
 
-async def test_admin_can_verify_vehicle_link(
+async def test_admin_cannot_verify_vehicle_link_without_evidence(
     client: TestClient,
     db_session: AsyncSession,
 ) -> None:
@@ -44,13 +46,11 @@ async def test_admin_can_verify_vehicle_link(
 
     response = client.patch(
         f"/api/v1/admin/vehicle-links/{vehicle['vehicle_link_id']}/verification",
-        json={"verification_status": "verified"},
+        json={"verification_status": "verified", "expected_version": 1},
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
-    assert response.status_code == 200, response.text
-    assert response.json()["verification_status"] == "verified"
-    assert response.json()["verification_rejection_reason"] is None
+    assert response.status_code == 409, response.text
 
 
 async def test_admin_can_reject_document(
@@ -59,17 +59,17 @@ async def test_admin_can_reject_document(
 ) -> None:
     user_headers = auth_headers(client)
     vehicle_id = create_vehicle(client, user_headers)
-    document = client.post(
-        f"/api/v1/vehicles/{vehicle_id}/documents",
-        json=document_payload(),
-        headers=user_headers,
-    ).json()
+    document = create_uploaded_document(client, vehicle_id, user_headers)
     await create_admin_user(db_session)
     admin_token = login(client, email="admin@example.com")
 
     response = client.patch(
         f"/api/v1/admin/documents/{document['id']}/review",
-        json={"review_status": "rejected", "rejection_reason": "Unreadable document"},
+        json={
+            "review_status": "rejected",
+            "rejection_reason": "Unreadable document",
+            "expected_version": 1,
+        },
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 

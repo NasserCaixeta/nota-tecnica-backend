@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
-from tests.test_auth_users import login, register_user
+from tests.support import register_approved_user as register_user
+from tests.test_auth_users import login
 from tests.test_vehicles import vehicle_payload
 
 
@@ -85,6 +86,23 @@ def test_list_and_read_maintenance_records(client: TestClient) -> None:
         headers=headers,
     )
     record_id = created.json()["id"]
+
+    async def validate_own_relationship():
+        from sqlalchemy import select
+
+        from app.modules.vehicles.models import (
+            GarageValidationStatus,
+            VehicleUser,
+            VerificationStatus,
+        )
+
+        session = client.app.state.test_db_session
+        link = await session.scalar(select(VehicleUser).where(VehicleUser.vehicle_id == vehicle_id))
+        link.garage_status = GarageValidationStatus.ACTIVE
+        link.verification_status = VerificationStatus.VERIFIED
+        await session.commit()
+
+    client.portal.call(validate_own_relationship)
 
     list_response = client.get(
         f"/api/v1/vehicles/{vehicle_id}/maintenance-records",

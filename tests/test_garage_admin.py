@@ -53,9 +53,18 @@ async def test_admin_can_approve_garage_vehicle_link(
     link_id = submit_owner_vehicle_for_review(client, user_headers)
     headers = await admin_headers(client, db_session)
 
+    detail = client.get(f"/api/v1/admin/garage/vehicle-links/{link_id}", headers=headers).json()
+    for document in detail["documents"]:
+        accepted = client.patch(
+            f"/api/v1/admin/documents/{document['id']}/review",
+            headers=headers,
+            json={"review_status": "approved", "expected_version": document["review_version"]},
+        )
+        assert accepted.status_code == 200
+    detail = client.get(f"/api/v1/admin/garage/vehicle-links/{link_id}", headers=headers).json()
     response = client.patch(
         f"/api/v1/admin/garage/vehicle-links/{link_id}/review",
-        json={"verification_status": "verified"},
+        json={"verification_status": "verified", "expected_version": detail["review_version"]},
         headers=headers,
     )
 
@@ -75,6 +84,7 @@ async def test_admin_can_reject_garage_vehicle_link(
         f"/api/v1/admin/garage/vehicle-links/{link_id}/review",
         json={
             "verification_status": "rejected",
+            "expected_version": 1,
             "verification_rejection_reason": "Documento ilegível",
         },
         headers=headers,
@@ -97,6 +107,7 @@ async def test_admin_can_request_additional_documents(
     response = client.post(
         f"/api/v1/admin/garage/vehicle-links/{link_id}/requested-documents",
         json={
+            "expected_version": 1,
             "requested_document_types": ["owner_authorization"],
             "note": "Enviar autorização assinada",
         },

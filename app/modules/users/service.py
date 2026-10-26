@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.security import hash_password
-from app.modules.users.models import User, UserProfileType
-from app.modules.users.schemas import UserCreate
+from app.modules.users.models import ParticipationStatus, User, UserProfileType
+from app.modules.users.schemas import UserCreate, UserRead
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
@@ -15,6 +15,30 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
 async def get_user_by_id(session: AsyncSession, user_id: int) -> User | None:
     result = await session.execute(select(User).where(User.id == user_id))
     return result.scalar_one_or_none()
+
+
+async def user_to_read(session: AsyncSession, user: User) -> UserRead:
+    from app.modules.vehicles.models import VerificationStatus
+    from app.modules.workshops.models import Workshop, WorkshopUser
+
+    data = UserRead.model_validate(user)
+    if user.is_active and user.participation_status == ParticipationStatus.APPROVED:
+        data.capabilities.append("customer")
+        representation = await session.scalar(
+            select(WorkshopUser.id)
+            .join(Workshop, Workshop.id == WorkshopUser.workshop_id)
+            .where(
+                WorkshopUser.user_id == user.id,
+                WorkshopUser.verification_status == VerificationStatus.VERIFIED,
+                Workshop.verification_status == VerificationStatus.VERIFIED,
+            )
+            .limit(1)
+        )
+        if representation is not None:
+            data.capabilities.append("workshop_owner")
+        if user.is_admin:
+            data.capabilities.append("admin")
+    return data
 
 
 async def create_user(session: AsyncSession, payload: UserCreate) -> User:

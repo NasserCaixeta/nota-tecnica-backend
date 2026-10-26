@@ -5,6 +5,7 @@ class Base(DeclarativeBase):
     pass
 
 
+from app.modules.audit import models as audit_models  # noqa: E402,F401
 from app.modules.documents import models as document_models  # noqa: E402,F401
 from app.modules.maintenance import models as maintenance_models  # noqa: E402,F401
 from app.modules.users import models as user_models  # noqa: E402,F401

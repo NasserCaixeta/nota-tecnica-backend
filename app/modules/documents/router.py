@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.integrations.storage.r2 import StorageClient, create_storage_client
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import get_approved_participant
 from app.modules.documents.schemas import (
     DocumentCreate,
+    DocumentDownloadRead,
     DocumentRead,
     DocumentUploadConfirm,
     DocumentUploadIntentCreate,
@@ -19,6 +20,7 @@ from app.modules.documents.service import (
     create_document,
     create_document_upload_intent,
     get_document,
+    get_document_download,
     list_vehicle_documents,
 )
 from app.modules.users.models import User
@@ -38,7 +40,7 @@ def get_storage_client() -> Callable[[], StorageClient]:
 async def create_vehicle_document(
     vehicle_id: int,
     payload: DocumentCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> DocumentRead:
     return await create_document(session, vehicle_id, payload, current_user)
@@ -52,7 +54,7 @@ async def create_vehicle_document(
 async def create_vehicle_document_upload_intent(
     vehicle_id: int,
     payload: DocumentUploadIntentCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
     storage_client_factory: Annotated[Callable[[], StorageClient], Depends(get_storage_client)],
 ) -> DocumentUploadIntentRead:
@@ -68,7 +70,7 @@ async def create_vehicle_document_upload_intent(
 @router.get("/vehicles/{vehicle_id}/documents", response_model=list[DocumentRead])
 async def read_vehicle_documents(
     vehicle_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[DocumentRead]:
     return await list_vehicle_documents(session, vehicle_id, current_user)
@@ -77,7 +79,7 @@ async def read_vehicle_documents(
 @router.get("/documents/{document_id}", response_model=DocumentRead)
 async def read_document(
     document_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> DocumentRead:
     return await get_document(session, document_id, current_user)
@@ -87,7 +89,25 @@ async def read_document(
 async def confirm_uploaded_document(
     document_id: int,
     payload: DocumentUploadConfirm,
-    current_user: Annotated[User, Depends(get_current_user)],
+    storage_client_factory: Annotated[Callable[[], StorageClient], Depends(get_storage_client)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> DocumentRead:
-    return await confirm_document_upload(session, document_id, payload, current_user)
+    from app.modules.documents.access import require_document_owner
+
+    require_document_owner(await get_document(session, document_id, current_user), current_user)
+    return await confirm_document_upload(
+        session, document_id, payload, current_user, storage_client_factory()
+    )
+
+
+@router.get("/documents/{document_id}/download", response_model=DocumentDownloadRead)
+async def download_document(
+    document_id: int,
+    current_user: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    storage_client_factory: Annotated[Callable[[], StorageClient], Depends(get_storage_client)],
+) -> DocumentDownloadRead:
+    # Check the actor before trying configuration or contacting external storage.
+    await get_document(session, document_id, current_user)
+    return await get_document_download(session, document_id, current_user, storage_client_factory())

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.integrations.storage.r2 import StorageClient, create_storage_client
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import get_approved_participant
 from app.modules.documents.schemas import DocumentUploadIntentCreate, DocumentUploadIntentRead
 from app.modules.documents.service import create_vehicle_link_document_upload_intent
 from app.modules.garage.schemas import (
@@ -35,7 +35,7 @@ def get_storage_client() -> Callable[[], StorageClient]:
 
 @router.get("", response_model=GarageDashboard)
 async def read_garage_dashboard(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> GarageDashboard:
     return await get_garage_dashboard(session, current_user)
@@ -43,7 +43,7 @@ async def read_garage_dashboard(
 
 @router.get("/vehicles", response_model=list[GarageVehicleItem])
 async def read_garage_vehicles(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[GarageVehicleItem]:
     return await list_garage_vehicle_items(session, current_user)
@@ -52,7 +52,7 @@ async def read_garage_vehicles(
 @router.post("/vehicles", response_model=GarageVehicleItem, status_code=status.HTTP_201_CREATED)
 async def create_vehicle_in_garage(
     payload: GarageVehicleCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> GarageVehicleItem:
     return await create_garage_vehicle(session, payload, current_user)
@@ -61,7 +61,7 @@ async def create_vehicle_in_garage(
 @router.get("/vehicles/{vehicle_id}", response_model=GarageVehicleItem)
 async def read_garage_vehicle(
     vehicle_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> GarageVehicleItem:
     return await get_garage_vehicle(session, vehicle_id, current_user)
@@ -71,7 +71,7 @@ async def read_garage_vehicle(
 async def patch_garage_relationship(
     vehicle_link_id: int,
     payload: GarageRelationshipUpdate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> GarageVehicleItem:
     return await update_garage_relationship(session, vehicle_link_id, payload, current_user)
@@ -83,7 +83,7 @@ async def patch_garage_relationship(
 )
 async def submit_garage_review(
     vehicle_link_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> GarageReviewSubmitResponse:
     return await submit_garage_vehicle_review(session, vehicle_link_id, current_user)
@@ -95,7 +95,7 @@ async def submit_garage_review(
 )
 async def resubmit_garage_review(
     vehicle_link_id: int,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> GarageReviewSubmitResponse:
     return await submit_garage_vehicle_review(session, vehicle_link_id, current_user)
@@ -109,7 +109,7 @@ async def resubmit_garage_review(
 async def create_garage_document_upload_intent(
     vehicle_link_id: int,
     payload: DocumentUploadIntentCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
     storage_client_factory: Annotated[Callable[[], StorageClient], Depends(get_storage_client)],
 ) -> DocumentUploadIntentRead:

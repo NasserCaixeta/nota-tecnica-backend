@@ -7,7 +7,7 @@ from app.db.session import get_db
 from app.modules.auth.schemas import LoginRequest, TokenResponse
 from app.modules.auth.service import authenticate_user, create_user_access_token
 from app.modules.users.schemas import UserCreate, UserRead
-from app.modules.users.service import create_user
+from app.modules.users.service import create_user, user_to_read
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,7 +17,8 @@ async def register_user(
     payload: UserCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserRead:
-    return await create_user(session, payload)
+    user = await create_user(session, payload)
+    return await user_to_read(session, user)
 
 
 @router.post("/login", response_model=TokenResponse)

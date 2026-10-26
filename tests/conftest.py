@@ -39,6 +39,7 @@ async def client(db_session: AsyncSession) -> AsyncIterator[TestClient]:
 
     get_settings.cache_clear()
     application = create_app()
+    application.state.test_db_session = db_session
     application.dependency_overrides[get_db] = override_get_db
 
     with TestClient(application) as test_client:
