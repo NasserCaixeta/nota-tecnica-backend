@@ -52,10 +52,10 @@ Aplicam-se P00–P03. Sem histórico completo de terceiros até P05. Preço e re
 
 **Interfaces:** página aceita cidade, UF e categoria e envia os mesmos filtros ao endpoint; cards recebem `score: number | null`, `eligible_for_ranking`, `sample_label`, `review_count`, `measured_deadline_count`, versão e explicação. Perfil mostra indicadores e avaliações publicáveis, sem nomes pessoais dos avaliadores. Expor no backend `GET /public/workshops/{id}/performance` com a mesma regra de elegibilidade de T2.
 
-- [ ] Testar oficina sem serviços sem nota inventada; amostra quatro sem posição; mudança de filtro atualiza a amostra e mantém contexto. Landing sem dados mostra vazio honesto; falha de API mostra erro recuperável. Não renderizar taxas de retrabalho fixas nem avaliações de serviço contestado.
-- [ ] Executar em F: `npm run test -- --run src/features/public src/features/workshops`; confirmar falha dos novos comportamentos.
-- [ ] Substituir dados estáticos por consulta real, mantendo eventual exemplo explicitamente rotulado e fora do ranking. Usar perfil conectado de P03; mostrar fórmula legível, versão e contagens. Avaliação parte do detalhe do serviço reconhecido, não de botão público irrestrito.
-- [ ] Executar verificações completas P00 e simular retirada de um serviço por contestação, conferindo landing, prévia, perfil e ranking na próxima leitura.
-- [ ] Commit sugerido em cada repo alterado: `feat: show transparent pilot workshop performance`.
+- [x] Testar oficina sem serviços sem nota inventada; amostra quatro sem posição; mudança de filtro atualiza a amostra e mantém contexto. Landing sem dados mostra vazio honesto; falha de API mostra erro recuperável. Não renderizar taxas de retrabalho fixas nem avaliações de serviço contestado.
+- [x] Executar em F: `npm run test -- --run src/features/public src/features/workshops`; confirmar falha dos novos comportamentos.
+- [x] Substituir dados estáticos por consulta real, mantendo eventual exemplo explicitamente rotulado e fora do ranking. Usar perfil conectado de P03; mostrar fórmula legível, versão e contagens. Avaliação parte do detalhe do serviço reconhecido, não de botão público irrestrito.
+- [x] Executar verificações completas P00 e simular retirada de um serviço por contestação, conferindo landing, prévia, perfil e ranking na próxima leitura.
+- [x] Commit sugerido em cada repo alterado: `feat: show transparent pilot workshop performance`.
 
 **Saída:** prévia e ranking confiáveis sem acesso completo gratuito; P05 usa `PublishedMaintenanceRead` na consulta comprada.

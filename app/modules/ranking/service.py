@@ -128,3 +128,28 @@ async def list_workshop_ranking(session, city, state, category, limit):
         items=[i for i, _ in ranked[:limit]],
         unranked_items=[i for i, _ in unranked[:limit]],
     )
+
+
+async def get_workshop_performance(session, workshop_id):
+    from fastapi import HTTPException
+
+    workshop = await session.get(Workshop, workshop_id)
+    if workshop is None or workshop.verification_status != VerificationStatus.VERIFIED:
+        raise HTTPException(status_code=404, detail="Workshop not found")
+    records = list(
+        (
+            await session.scalars(
+                published_maintenance_select().where(MaintenanceRecord.workshop_id == workshop.id)
+            )
+        ).all()
+    )
+    metrics, _, reviews = await workshop_metrics(session, workshop, records)
+    return {
+        "score_version": SCORE_VERSION,
+        "score_explanation": SCORE_EXPLANATION,
+        "metrics": metrics,
+        "reviews": [
+            {"stars": r.stars, "comment": r.comment if not r.comment_hidden else None}
+            for r in reviews
+        ],
+    }

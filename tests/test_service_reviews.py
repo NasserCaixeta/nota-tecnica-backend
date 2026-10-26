@@ -48,3 +48,54 @@ async def test_workshop_responsible_cannot_review_own_workshop(client, db_sessio
         json={"revision_id": record["current_revision_id"], "stars": 5},
     )
     assert r.status_code == 403
+
+
+async def test_service_detail_exposes_rating_permission_and_author_can_resume_own_review(
+    client, db_session
+):
+    h, _, record, _, _, _ = await approve_customer_service(client, db_session)
+    assert (
+        client.get(f"/api/v1/maintenance-records/{record['id']}", headers=h).json()["permissions"][
+            "can_review"
+        ]
+        is True
+    )
+    saved = client.put(
+        f"/api/v1/maintenance-records/{record['id']}/review",
+        headers=h,
+        json={"revision_id": record["current_revision_id"], "stars": 4, "comment": "Good"},
+    ).json()
+    own = client.get(f"/api/v1/maintenance-records/{record['id']}/review", headers=h)
+    assert own.status_code == 200
+    assert own.json()["id"] == saved["id"]
+
+
+async def test_admin_can_moderate_comment_without_changing_customer_stars(client, db_session):
+    h, _, record, _, admin, _ = await approve_customer_service(client, db_session)
+    saved = client.put(
+        f"/api/v1/maintenance-records/{record['id']}/review",
+        headers=h,
+        json={"revision_id": record["current_revision_id"], "stars": 4, "comment": "Comment"},
+    ).json()
+    url = f"/api/v1/admin/service-reviews/{saved['id']}"
+    assert (
+        client.patch(
+            url,
+            headers=admin,
+            json={
+                "expected_version": 1,
+                "comment_hidden": True,
+                "reason": "Privacy review",
+                "stars": 5,
+            },
+        ).status_code
+        == 422
+    )
+    response = client.patch(
+        url,
+        headers=admin,
+        json={"expected_version": 1, "comment_hidden": True, "reason": "Privacy review"},
+    )
+    assert response.status_code == 200
+    assert response.json()["stars"] == 4
+    assert response.json()["comment_hidden"] is True

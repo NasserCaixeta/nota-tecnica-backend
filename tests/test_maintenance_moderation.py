@@ -268,6 +268,7 @@ def test_service_detail_exposes_server_permissions_and_only_senders_documents(cl
         "can_acknowledge": False,
         "can_dispute": False,
         "can_invite": False,
+        "can_review": False,
     }
     proof = create_uploaded_document(
         client, v, h, maintenance_record_id=record["id"], document_type="invoice"

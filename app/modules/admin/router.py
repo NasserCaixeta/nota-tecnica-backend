@@ -33,7 +33,12 @@ from app.modules.maintenance.schemas import (
     ServiceDisputeReview,
 )
 from app.modules.maintenance.service import get_maintenance_record
-from app.modules.ranking.reviews import ServiceReviewModeration, moderate_service_review
+from app.modules.ranking.models import ServiceReview
+from app.modules.ranking.reviews import (
+    ServiceReviewModeration,
+    moderate_service_review,
+    review_to_read,
+)
 from app.modules.users.models import ParticipationStatus, User
 from app.modules.users.schemas import UserRead
 from app.modules.users.service import user_to_read
@@ -317,3 +322,18 @@ async def patch_service_review_comment(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await moderate_service_review(session, review_id, payload, actor)
+
+
+@router.get("/service-reviews")
+async def read_service_review_comments(
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    items = (
+        await session.scalars(
+            select(ServiceReview)
+            .where(ServiceReview.comment.is_not(None))
+            .order_by(ServiceReview.id.desc())
+        )
+    ).all()
+    return [review_to_read(r) for r in items]

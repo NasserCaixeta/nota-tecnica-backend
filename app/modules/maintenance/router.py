@@ -61,7 +61,8 @@ from app.modules.maintenance.service import (
     list_workshop_maintenance,
     update_maintenance_record,
 )
-from app.modules.ranking.reviews import ServiceReviewCreate, put_service_review
+from app.modules.ranking.models import ServiceReview
+from app.modules.ranking.reviews import ServiceReviewCreate, put_service_review, review_to_read
 from app.modules.users.models import User
 
 router = APIRouter(tags=["maintenance"])
@@ -423,3 +424,17 @@ async def put_maintenance_review(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await put_service_review(session, record_id, payload, actor)
+
+
+@router.get("/maintenance-records/{record_id}/review")
+async def read_my_service_review(
+    record_id: int,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    own = await session.scalar(
+        select(ServiceReview).where(
+            ServiceReview.record_id == record_id, ServiceReview.customer_user_id == actor.id
+        )
+    )
+    return review_to_read(own) if own else None

@@ -135,3 +135,28 @@ async def test_review_stops_contributing_when_customer_becomes_workshop_represen
     )
     await db_session.commit()
     assert client.get("/api/v1/public/workshops/ranking").json()["items"][0]["review_count"] == 0
+
+
+async def test_public_performance_has_no_personal_reviewer_data(client, db_session):
+    _, office, _ = await seed_public_services(client, db_session, 5)
+    r = client.get(f"/api/v1/public/workshops/{office}/performance")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["metrics"]["review_count"] == 5
+    assert all(
+        {"customer_user_id", "full_name", "email", "vehicle_id", "plate"}.isdisjoint(review)
+        for review in data["reviews"]
+    )
+    from sqlalchemy import select
+
+    from app.modules.maintenance.models import MaintenanceRevision
+
+    revision = await db_session.scalar(select(MaintenanceRevision).limit(1))
+    revision.admin_status = "pending"
+    await db_session.commit()
+    assert (
+        client.get(f"/api/v1/public/workshops/{office}/performance").json()["metrics"][
+            "review_count"
+        ]
+        == 4
+    )

@@ -103,7 +103,8 @@ async def record_to_read(session, record, actor):
     ):
         values[key] = getattr(revision, key)
     permissions = dict.fromkeys(
-        ("can_edit", "can_submit", "can_acknowledge", "can_dispute", "can_invite"), False
+        ("can_edit", "can_submit", "can_acknowledge", "can_dispute", "can_invite", "can_review"),
+        False,
     )
     if actor is not None and record.superseded_by_id is None:
         from app.modules.garage.policy import require_garage_write
@@ -130,6 +131,15 @@ async def record_to_read(session, record, actor):
         if revision.customer_user_id == actor.id:
             try:
                 await require_active_vehicle_link(session, actor.id, record.vehicle_id)
+                from app.modules.workshops.models import WorkshopUser
+
+                responsible = await session.scalar(
+                    select(WorkshopUser.id).where(
+                        WorkshopUser.user_id == actor.id,
+                        WorkshopUser.workshop_id == record.workshop_id,
+                    )
+                )
+                permissions["can_review"] = public_id is not None and responsible is None
                 permissions["can_dispute"] = not record.dispute_open
                 permissions["can_acknowledge"] = (
                     not record.dispute_open
