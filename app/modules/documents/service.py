@@ -38,11 +38,17 @@ async def ensure_maintenance_record_belongs_to_vehicle(
     if maintenance_record_id is None:
         return
     record = await session.get(MaintenanceRecord, maintenance_record_id)
-    if record is None or record.author_user_id != user.id:
+    if record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Maintenance record not found",
         )
+    from app.modules.maintenance.service import can_operate_record
+
+    try:
+        await can_operate_record(session, record, user)
+    except HTTPException as exc:
+        raise HTTPException(status_code=404, detail="Maintenance record not found") from exc
     if record.vehicle_id != vehicle_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -66,7 +72,27 @@ async def create_document_upload_intent(
     user: User,
     storage_client: StorageClient,
 ) -> DocumentUploadIntentRead:
-    await require_vehicle_link(session, user.id, vehicle_id)
+    revision_id = None
+    if payload.maintenance_record_id is None:
+        await require_vehicle_link(session, user.id, vehicle_id)
+    else:
+        from app.modules.maintenance.revisions import (
+            create_revision,
+            current_revision,
+            locked_record,
+        )
+        from app.modules.maintenance.service import can_operate_record
+
+        record = await locked_record(session, payload.maintenance_record_id)
+        try:
+            await can_operate_record(session, record, user)
+        except HTTPException as exc:
+            raise HTTPException(status_code=404, detail="Maintenance record not found") from exc
+        revision = await current_revision(session, record)
+        if revision.editorial_status != "draft" or revision.admin_status != "pending":
+            revision = await create_revision(session, record, actor_id=user.id)
+        revision.review_version += 1
+        revision_id = revision.id
     vehicle = await session.get(Vehicle, vehicle_id)
     await ensure_maintenance_record_belongs_to_vehicle(
         session,
@@ -79,6 +105,7 @@ async def create_document_upload_intent(
         owner_user_id=user.id,
         vehicle_id=vehicle_id,
         maintenance_record_id=payload.maintenance_record_id,
+        maintenance_revision_id=revision_id,
         document_type=payload.document_type,
         file_name=payload.file_name,
         original_file_name=payload.file_name,
@@ -112,6 +139,8 @@ async def create_vehicle_link_document_upload_intent(
     user: User,
     storage_client: StorageClient,
 ) -> DocumentUploadIntentRead:
+    if payload.maintenance_record_id is not None:
+        raise HTTPException(status_code=422, detail="Use service evidence upload for maintenance")
     result = await session.execute(
         select(Vehicle, VehicleUser)
         .join(VehicleUser, VehicleUser.vehicle_id == Vehicle.id)

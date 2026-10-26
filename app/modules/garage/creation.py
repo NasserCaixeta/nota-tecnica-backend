@@ -32,7 +32,9 @@ async def create_garage_vehicle_link(
         )
         if existing is not None:
             raise HTTPException(status_code=409, detail="Vehicle already in garage")
-        if vehicle.chassis != payload.chassis or vehicle.renavam != payload.renavam:
+        if (vehicle.chassis is not None and vehicle.chassis != payload.chassis) or (
+            vehicle.renavam is not None and vehicle.renavam != payload.renavam
+        ):
             raise HTTPException(status_code=409, detail="Vehicle identifiers require review")
     else:
         duplicate = await session.scalar(
@@ -57,6 +59,9 @@ async def create_garage_vehicle_link(
             verification_status=VerificationStatus.PENDING,
             garage_status=GarageValidationStatus.PENDING_DOCUMENTS,
             review_attempts=0,
+            declared_vehicle_data=payload.model_dump(
+                mode="json", exclude={"relationship_type", "relationship_note"}
+            ),
         )
         session.add(link)
         session.add(GarageMembership(vehicle_id=vehicle.id, user_id=user.id))

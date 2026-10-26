@@ -35,7 +35,8 @@ def test_declaring_existing_plate_does_not_reveal_previous_history(client):
     linked = client.post("/api/v1/garage/vehicles", headers=stranger, json=vehicle_payload())
     assert linked.status_code == 201
     history = client.get(f"/api/v1/vehicles/{vehicle_id}/maintenance-records", headers=stranger)
-    assert history.status_code == 403
+    assert history.status_code == 200
+    assert history.json() == []
     detail = client.get(f"/api/v1/maintenance-records/{record.json()['id']}", headers=stranger)
     assert detail.status_code == 403
 

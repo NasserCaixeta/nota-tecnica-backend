@@ -88,6 +88,9 @@ class Document(Base):
         nullable=True,
         index=True,
     )
+    maintenance_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("maintenance_revisions.id"), nullable=True, index=True
+    )
     vehicle_link_id: Mapped[int | None] = mapped_column(
         ForeignKey("vehicle_users.id"),
         nullable=True,

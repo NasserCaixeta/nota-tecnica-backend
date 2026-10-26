@@ -19,6 +19,14 @@ from app.modules.admin.service import (
 from app.modules.auth.dependencies import get_current_admin_user
 from app.modules.documents.schemas import DocumentRead, DocumentReviewUpdate
 from app.modules.garage.schemas import AdminAdditionalDocumentsRequest, AdminGarageVehicleLinkRead
+from app.modules.maintenance.moderation import (
+    pending_maintenance,
+    review_maintenance,
+    revision_evidence,
+)
+from app.modules.maintenance.revisions import record_to_read
+from app.modules.maintenance.schemas import MaintenanceRecordRead, MaintenanceReview
+from app.modules.maintenance.service import get_maintenance_record
 from app.modules.users.models import ParticipationStatus, User
 from app.modules.users.schemas import UserRead
 from app.modules.users.service import user_to_read
@@ -200,3 +208,38 @@ async def patch_workshop_claim(
     from app.modules.workshops.claims import review_workshop_claim
 
     return await review_workshop_claim(session, claim_id, payload, actor)
+
+
+@router.get("/maintenance-reviews", response_model=list[MaintenanceRecordRead])
+async def read_maintenance_reviews(
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return [await record_to_read(session, r) for r in await pending_maintenance(session)]
+
+
+@router.get("/maintenance-reviews/{record_id}")
+async def read_maintenance_review_detail(
+    record_id: int,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    record = await get_maintenance_record(session, record_id, actor)
+    result = await record_to_read(session, record)
+    documents = await revision_evidence(session, record.current_revision_id)
+    return {
+        **result.model_dump(mode="json"),
+        "documents": [DocumentRead.model_validate(d) for d in documents],
+    }
+
+
+@router.patch("/maintenance-reviews/{record_id}", response_model=MaintenanceRecordRead)
+async def patch_maintenance_review(
+    record_id: int,
+    payload: MaintenanceReview,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await record_to_read(
+        session, await review_maintenance(session, record_id, payload, actor)
+    )

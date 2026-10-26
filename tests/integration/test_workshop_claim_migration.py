@@ -2,18 +2,11 @@ import asyncio
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from alembic import command
 from app.core.config import get_settings
-from app.modules.documents.models import (
-    Document,
-    DocumentProcessingStatus,
-    DocumentReviewStatus,
-    DocumentType,
-    DocumentUploadStatus,
-)
 from app.modules.users.models import User
 from app.modules.vehicles.models import Vehicle
 from app.modules.workshops.models import WorkshopClaim
@@ -43,26 +36,21 @@ async def test_claim_migration_accepts_private_evidence_with_a_single_subject(
             vehicle = Vehicle(**vehicle_payload())
             session.add(vehicle)
             await session.flush()
-            data = dict(
-                owner_user_id=actor.id,
-                workshop_claim_id=claim.id,
-                document_type=DocumentType.OTHER,
-                file_name="proof.pdf",
-                original_file_name="proof.pdf",
-                content_type="application/pdf",
-                review_status=DocumentReviewStatus.PENDING,
-                upload_status=DocumentUploadStatus.PENDING,
-                processing_status=DocumentProcessingStatus.NOT_REQUESTED,
-            )
-            valid = Document(**data, storage_key="valid-proof", vehicle_id=None)
-            session.add(valid)
+            insert = text("""INSERT INTO documents
+                (owner_user_id,workshop_claim_id,vehicle_id,document_type,file_name,
+                 original_file_name,content_type,storage_key,review_status,upload_status,
+                 processing_status,created_at,updated_at)
+                VALUES (:owner,:claim,:vehicle,'OTHER','proof.pdf','proof.pdf',
+                'application/pdf',:key,'PENDING','PENDING','NOT_REQUESTED',now(),now())
+                RETURNING workshop_claim_id""")
+            params = dict(owner=actor.id, claim=claim.id, vehicle=None, key="valid-proof")
+            result = await session.execute(insert, params)
+            assert result.scalar_one() == claim.id
             await session.commit()
-            assert valid.workshop_claim_id == claim.id
             with pytest.raises(IntegrityError, match="ck_document_subject"):
                 async with session.begin_nested():
-                    session.add(
-                        Document(**data, storage_key="invalid-proof", vehicle_id=vehicle.id)
+                    await session.execute(
+                        insert, {**params, "vehicle": vehicle.id, "key": "invalid-proof"}
                     )
-                    await session.flush()
     finally:
         get_settings.cache_clear()

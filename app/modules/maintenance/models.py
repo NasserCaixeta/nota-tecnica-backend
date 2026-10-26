@@ -3,7 +3,18 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -50,6 +61,15 @@ class MaintenanceRecord(Base):
     __tablename__ = "maintenance_records"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    origin: Mapped[str] = mapped_column(String(16), default="customer", nullable=False)
+    current_revision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("maintenance_revisions.id", use_alter=True, name="fk_current_revision"),
+        nullable=True,
+    )
+    dispute_open: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    superseded_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("maintenance_records.id"), nullable=True
+    )
     vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.id"), nullable=False, index=True)
     author_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     workshop_id: Mapped[int | None] = mapped_column(
@@ -94,4 +114,26 @@ class MaintenanceRecord(Base):
     documents: Mapped[list["Document"]] = relationship(
         "Document",
         back_populates="maintenance_record",
+    )
+
+
+class MaintenanceRevision(Base):
+    __tablename__ = "maintenance_revisions"
+    __table_args__ = (
+        UniqueConstraint("record_id", "revision_number", name="uq_maintenance_revision"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"), index=True)
+    revision_number: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    editorial_status: Mapped[str] = mapped_column(String(24), default="draft")
+    admin_status: Mapped[str] = mapped_column(String(24), default="pending")
+    customer_acknowledgement: Mapped[str] = mapped_column(String(32))
+    customer_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    review_version: Mapped[int] = mapped_column(default=1)
+    public_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

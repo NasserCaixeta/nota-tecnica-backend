@@ -46,6 +46,7 @@ class DocumentUploadIntentCreate(BaseModel):
 
 class DocumentRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    maintenance_revision_id: int | None = None
 
     id: int
     owner_user_id: int

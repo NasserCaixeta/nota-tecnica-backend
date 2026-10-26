@@ -37,16 +37,16 @@ class Vehicle(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     plate: Mapped[str] = mapped_column(String(16), unique=True, index=True, nullable=False)
-    brand: Mapped[str] = mapped_column(String(120), nullable=False)
-    model: Mapped[str] = mapped_column(String(120), nullable=False)
-    model_year: Mapped[int] = mapped_column(nullable=False)
-    color: Mapped[str] = mapped_column(String(60), nullable=False)
-    vehicle_type: Mapped[str] = mapped_column(String(60), nullable=False)
-    chassis: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
-    renavam: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
-    fuel_type: Mapped[str] = mapped_column(String(60), nullable=False)
-    engine: Mapped[str] = mapped_column(String(120), nullable=False)
-    transmission: Mapped[str] = mapped_column(String(60), nullable=False)
+    brand: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    model_year: Mapped[int | None] = mapped_column(nullable=True)
+    color: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    vehicle_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    chassis: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    renavam: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    fuel_type: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    engine: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    transmission: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -93,6 +93,7 @@ class VehicleUser(Base):
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     review_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    declared_vehicle_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     review_version: Mapped[int] = mapped_column(default=1, nullable=False)
     requested_document_types: Mapped[list[str]] = mapped_column(
         JSON,

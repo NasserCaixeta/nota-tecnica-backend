@@ -11,20 +11,21 @@ from app.modules.vehicles.schemas import VehicleCreate, VehicleRead
 
 
 def build_vehicle_read(vehicle: Vehicle, link: VehicleUser) -> VehicleRead:
+    data = link.declared_vehicle_data or {}
     return VehicleRead(
         id=vehicle.id,
         vehicle_link_id=link.id,
         plate=vehicle.plate,
-        brand=vehicle.brand,
-        model=vehicle.model,
-        model_year=vehicle.model_year,
-        color=vehicle.color,
-        vehicle_type=vehicle.vehicle_type,
-        chassis=vehicle.chassis,
-        renavam=vehicle.renavam,
-        fuel_type=vehicle.fuel_type,
-        engine=vehicle.engine,
-        transmission=vehicle.transmission,
+        brand=data.get("brand", vehicle.brand),
+        model=data.get("model", vehicle.model),
+        model_year=data.get("model_year", vehicle.model_year),
+        color=data.get("color", vehicle.color),
+        vehicle_type=data.get("vehicle_type", vehicle.vehicle_type),
+        chassis=data.get("chassis", vehicle.chassis),
+        renavam=data.get("renavam", vehicle.renavam),
+        fuel_type=data.get("fuel_type", vehicle.fuel_type),
+        engine=data.get("engine", vehicle.engine),
+        transmission=data.get("transmission", vehicle.transmission),
         relationship_type=link.relationship_type,
         verification_status=link.verification_status,
         verification_rejection_reason=link.verification_rejection_reason,

@@ -3,7 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.validators import validate_brazilian_plate
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceStatus
+from app.modules.maintenance.models import MaintenanceRecord
+from app.modules.maintenance.publication import published_maintenance_select
 from app.modules.public.schemas import CompletenessScore, VehicleHistoryPreview
 from app.modules.vehicles.models import Vehicle
 
@@ -46,10 +47,7 @@ async def get_vehicle_history_preview(session: AsyncSession, plate: str) -> Vehi
         )
 
     rows = await session.execute(
-        select(MaintenanceRecord).where(
-            MaintenanceRecord.vehicle_id == vehicle.id,
-            MaintenanceRecord.status == MaintenanceStatus.COMPLETED,
-        )
+        published_maintenance_select().where(MaintenanceRecord.vehicle_id == vehicle.id)
     )
     records = list(rows.scalars().all())
     dates = [record.service_date for record in records]

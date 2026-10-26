@@ -1,0 +1,126 @@
+import asyncio
+
+import pytest
+from fastapi import HTTPException
+from sqlalchemy import func, select
+
+from app.modules.audit.models import AuditEvent
+from app.modules.documents.models import (
+    Document,
+    DocumentProcessingStatus,
+    DocumentReviewStatus,
+    DocumentType,
+    DocumentUploadStatus,
+)
+from app.modules.garage.creation import create_garage_vehicle_link
+from app.modules.garage.schemas import GarageVehicleCreate
+from app.modules.maintenance.models import MaintenanceRevision
+from app.modules.maintenance.moderation import review_maintenance
+from app.modules.maintenance.schemas import MaintenanceRecordCreate, MaintenanceReview
+from app.modules.maintenance.service import create_maintenance_record
+from app.modules.users.models import User
+from tests.integration.test_admin_concurrency import prepare_users
+from tests.test_maintenance import maintenance_payload
+from tests.test_vehicles import vehicle_payload
+
+
+async def prepare_service(engine):
+    factory = await prepare_users(engine)
+    async with factory() as session:
+        user = await session.get(User, 3)
+        vehicle, _ = await create_garage_vehicle_link(
+            session, GarageVehicleCreate(**vehicle_payload()), user
+        )
+        record = await create_maintenance_record(
+            session, vehicle.id, MaintenanceRecordCreate(**maintenance_payload()), user
+        )
+        revision = await session.get(MaintenanceRevision, record.current_revision_id)
+        revision.editorial_status = "submitted"
+        session.add(
+            Document(
+                owner_user_id=3,
+                vehicle_id=vehicle.id,
+                maintenance_record_id=record.id,
+                maintenance_revision_id=revision.id,
+                document_type=DocumentType.INVOICE,
+                storage_key="verified/proof",
+                file_name="proof.pdf",
+                original_file_name="proof.pdf",
+                content_type="application/pdf",
+                storage_verified=True,
+                review_status=DocumentReviewStatus.APPROVED,
+                upload_status=DocumentUploadStatus.UPLOADED,
+                processing_status=DocumentProcessingStatus.NOT_REQUESTED,
+            )
+        )
+        await session.commit()
+        return factory, record.id, revision.id
+
+
+async def test_two_service_reviewers_cannot_overwrite_the_same_version(pg_engine):
+    factory, record_id, revision_id = await prepare_service(pg_engine)
+    payload = MaintenanceReview(
+        expected_version=1,
+        revision_id=revision_id,
+        decision="approved",
+        reason="Inspected",
+        public_description="Troca de óleo",
+    )
+
+    async def review(actor_id):
+        async with factory() as session:
+            actor = await session.get(User, actor_id)
+            try:
+                await review_maintenance(session, record_id, payload, actor)
+                return 200
+            except HTTPException as exc:
+                await session.rollback()
+                return exc.status_code
+
+    assert sorted(await asyncio.gather(review(1), review(2))) == [200, 409]
+    async with factory() as session:
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "maintenance.review")
+            )
+            == 1
+        )
+
+
+async def test_failed_audit_rolls_back_service_decision(pg_engine, monkeypatch):
+    factory, record_id, revision_id = await prepare_service(pg_engine)
+
+    async def fail_audit(*args, **kwargs):
+        raise RuntimeError("Audit unavailable")
+
+    monkeypatch.setattr("app.modules.maintenance.moderation.append_audit", fail_audit)
+    async with factory() as session:
+        actor = await session.get(User, 1)
+        with pytest.raises(RuntimeError, match="Audit unavailable"):
+            await review_maintenance(
+                session,
+                record_id,
+                MaintenanceReview(
+                    expected_version=1,
+                    revision_id=revision_id,
+                    decision="approved",
+                    reason="Inspected",
+                    public_description="Troca de óleo",
+                ),
+                actor,
+            )
+        await session.rollback()
+    async with factory() as session:
+        revision = await session.get(MaintenanceRevision, revision_id)
+        assert revision.admin_status == "pending"
+        assert revision.review_version == 1
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "maintenance.review")
+            )
+            == 0
+        )

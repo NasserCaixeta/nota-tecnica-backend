@@ -4,7 +4,8 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.maintenance.models import MaintenanceCategory, MaintenanceRecord, MaintenanceStatus
+from app.modules.maintenance.models import MaintenanceCategory, MaintenanceRecord
+from app.modules.maintenance.publication import published_maintenance_select
 from app.modules.ranking.schemas import WorkshopRankingItem, WorkshopRankingResponse
 from app.modules.workshops.models import Workshop
 
@@ -38,7 +39,11 @@ async def list_workshop_ranking(
     statement = (
         select(Workshop, MaintenanceRecord)
         .join(MaintenanceRecord, MaintenanceRecord.workshop_id == Workshop.id)
-        .where(MaintenanceRecord.status == MaintenanceStatus.COMPLETED)
+        .where(
+            MaintenanceRecord.id.in_(
+                published_maintenance_select().with_only_columns(MaintenanceRecord.id)
+            )
+        )
     )
     if city is not None:
         statement = statement.where(Workshop.city == city)

@@ -1,12 +1,15 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.validators import validate_brazilian_plate
 from app.modules.maintenance.models import MaintenanceCategory, MaintenanceStatus, VehicleSystem
 
 
 class MaintenanceRecordCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     workshop_id: int | None = None
     service_date: date
     odometer: int = Field(ge=0)
@@ -21,8 +24,26 @@ class MaintenanceRecordCreate(BaseModel):
     actual_delivery_date: date | None = None
     status: MaintenanceStatus = MaintenanceStatus.COMPLETED
 
+    @model_validator(mode="after")
+    def coherent_dates(self):
+        for end in (self.promised_delivery_date, self.actual_delivery_date):
+            if self.entry_date and end and end < self.entry_date:
+                raise ValueError("Delivery cannot precede entry")
+        return self
+
+
+class WorkshopMaintenanceCreate(MaintenanceRecordCreate):
+    plate: str
+
+    @field_validator("plate")
+    @classmethod
+    def normalize_plate(cls, value):
+        return validate_brazilian_plate(value)
+
 
 class MaintenanceRecordUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    expected_revision_id: int | None = Field(default=None, ge=1)
     workshop_id: int | None = None
     service_date: date | None = None
     odometer: int | None = Field(default=None, ge=0)
@@ -60,3 +81,26 @@ class MaintenanceRecordRead(BaseModel):
     status: MaintenanceStatus
     created_at: datetime
     updated_at: datetime
+    origin: str
+    current_revision_id: int
+    editorial_status: str
+    admin_status: str
+    customer_acknowledgement: str
+    customer_user_id: int | None
+    review_version: int
+    public_description: str | None
+    review_reason: str | None
+    published: bool
+
+
+class MaintenanceSubmit(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    revision_id: int = Field(ge=1)
+
+
+class MaintenanceReview(MaintenanceSubmit):
+    expected_version: int = Field(ge=1)
+    decision: Literal["approved", "rejected", "changes_requested"]
+    reason: str = Field(min_length=1, max_length=2000)
+    public_description: str | None = Field(default=None, min_length=1, max_length=2000)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)

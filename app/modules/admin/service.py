@@ -90,6 +90,16 @@ async def review_document(
     document = await session.get(Document, document_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    maintenance_revision = None
+    if document.maintenance_record_id is not None:
+        from app.modules.maintenance.revisions import current_revision, locked_record
+
+        record = await locked_record(session, document.maintenance_record_id)
+        maintenance_revision = await current_revision(session, record)
+        if document.maintenance_revision_id != maintenance_revision.id:
+            raise HTTPException(
+                status_code=409, detail="This service evidence belongs to an old revision"
+            )
     claim = None
     link = None
     if document.workshop_claim_id is not None:
@@ -136,6 +146,11 @@ async def review_document(
         rejection_reason if review_status == DocumentReviewStatus.REJECTED else None
     )
     document.review_version += 1
+    if maintenance_revision is not None:
+        maintenance_revision.review_version += 1
+        if review_status == DocumentReviewStatus.REJECTED:
+            maintenance_revision.admin_status = "changes_requested"
+            maintenance_revision.editorial_status = "draft"
     if link is not None:
         link.review_version += 1
         if review_status == DocumentReviewStatus.REJECTED:
@@ -202,6 +217,20 @@ async def review_garage_vehicle_link(
             raise HTTPException(
                 status_code=409, detail="All required documents must be approved before activation"
             )
+        if vehicle.chassis is None and link.declared_vehicle_data:
+            # Canonical details are filled only after documentary verification.
+            from sqlalchemy.exc import IntegrityError
+
+            try:
+                async with session.begin_nested():
+                    for field, value in link.declared_vehicle_data.items():
+                        if field != "plate":
+                            setattr(vehicle, field, value)
+                    await session.flush()
+            except IntegrityError as exc:
+                raise HTTPException(
+                    status_code=409, detail="Vehicle identifiers require review"
+                ) from exc
         link.verification_status = VerificationStatus.VERIFIED
         link.garage_status = GarageValidationStatus.ACTIVE
         link.verification_rejection_reason = None
