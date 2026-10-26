@@ -89,7 +89,11 @@ async def create_document_upload_intent(
         except HTTPException as exc:
             raise HTTPException(status_code=404, detail="Maintenance record not found") from exc
         revision = await current_revision(session, record)
-        if revision.editorial_status != "draft" or revision.admin_status != "pending":
+        if (
+            revision.editorial_status != "draft"
+            or revision.admin_status != "pending"
+            or revision.customer_acknowledgement == "confirmed"
+        ):
             revision = await create_revision(session, record, actor_id=user.id)
         revision.review_version += 1
         revision_id = revision.id
@@ -228,6 +232,12 @@ async def confirm_document_upload(
     user: User,
     storage_client: StorageClient,
 ) -> Document:
+    existing = require_document_owner(await session.get(Document, document_id), user)
+    record = None
+    if existing.maintenance_record_id is not None:
+        from app.modules.maintenance.revisions import locked_record
+
+        record = await locked_record(session, existing.maintenance_record_id)
     document = require_document_owner(
         await session.scalar(
             select(Document)
@@ -260,6 +270,13 @@ async def confirm_document_upload(
         raise HTTPException(
             status_code=503, detail="Document storage is temporarily unavailable"
         ) from exc
+    if record is not None and document.maintenance_revision_id == record.current_revision_id:
+        from app.modules.maintenance.revisions import create_revision, current_revision
+
+        revision = await current_revision(session, record)
+        if revision.customer_acknowledgement == "confirmed":
+            revision = await create_revision(session, record, actor_id=user.id)
+            document.maintenance_revision_id = revision.id
     document.storage_key = final_key
     document.upload_status = DocumentUploadStatus.UPLOADED
     document.storage_verified = True

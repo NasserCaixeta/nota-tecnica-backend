@@ -22,3 +22,7 @@ docs/**
 docs/superpowers/plans/*
 !docs/superpowers/plans/2026-10-21-piloto-*.md
 .superpowers/
+
+!docs/superpowers/reviews/
+docs/superpowers/reviews/*
+!docs/superpowers/reviews/2026-10-26-piloto-p03.md

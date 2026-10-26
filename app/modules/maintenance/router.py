@@ -38,6 +38,7 @@ from app.modules.maintenance.models import (
     ServiceInvitation,
 )
 from app.modules.maintenance.moderation import submit_maintenance
+from app.modules.maintenance.projections import PublishedMaintenanceRead
 from app.modules.maintenance.revisions import record_to_read
 from app.modules.maintenance.schemas import (
     InvitationAccept,
@@ -77,13 +78,15 @@ async def create_vehicle_maintenance_record(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> MaintenanceRecordRead:
     return await record_to_read(
-        session, await create_maintenance_record(session, vehicle_id, payload, current_user)
+        session,
+        await create_maintenance_record(session, vehicle_id, payload, current_user),
+        actor=current_user,
     )
 
 
 @router.get(
     "/vehicles/{vehicle_id}/maintenance-records",
-    response_model=list[MaintenanceRecordRead],
+    response_model=list[MaintenanceRecordRead | PublishedMaintenanceRead],
 )
 async def read_vehicle_maintenance_records(
     vehicle_id: int,
@@ -91,12 +94,15 @@ async def read_vehicle_maintenance_records(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[MaintenanceRecordRead]:
     return [
-        await record_to_read(session, record)
+        await record_to_read(session, record, actor=current_user)
         for record in await list_vehicle_maintenance_records(session, vehicle_id, current_user)
     ]
 
 
-@router.get("/maintenance-records/{record_id}", response_model=MaintenanceRecordRead)
+@router.get(
+    "/maintenance-records/{record_id}",
+    response_model=MaintenanceRecordRead | PublishedMaintenanceRead,
+)
 async def read_maintenance_record(
     record_id: int,
     current_user: Annotated[User, Depends(get_approved_participant)],
@@ -115,7 +121,9 @@ async def patch_maintenance_record(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> MaintenanceRecordRead:
     return await record_to_read(
-        session, await update_maintenance_record(session, record_id, payload, current_user)
+        session,
+        await update_maintenance_record(session, record_id, payload, current_user),
+        actor=current_user,
     )
 
 
@@ -127,7 +135,9 @@ async def post_submit_maintenance(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await record_to_read(
-        session, await submit_maintenance(session, record_id, payload, current_user)
+        session,
+        await submit_maintenance(session, record_id, payload, current_user),
+        actor=current_user,
     )
 
 
@@ -143,12 +153,15 @@ async def post_workshop_maintenance(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await record_to_read(
-        session, await create_workshop_maintenance(session, workshop_id, payload, current_user)
+        session,
+        await create_workshop_maintenance(session, workshop_id, payload, current_user),
+        actor=current_user,
     )
 
 
 @router.get(
-    "/workshops/{workshop_id}/maintenance-records", response_model=list[MaintenanceRecordRead]
+    "/workshops/{workshop_id}/maintenance-records",
+    response_model=list[MaintenanceRecordRead | PublishedMaintenanceRead],
 )
 async def read_workshop_maintenance(
     workshop_id: int,
@@ -156,7 +169,7 @@ async def read_workshop_maintenance(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return [
-        await record_to_read(session, record)
+        await record_to_read(session, record, actor=current_user)
         for record in await list_workshop_maintenance(session, workshop_id, current_user)
     ]
 
@@ -197,21 +210,30 @@ async def post_service_acknowledgement(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await record_to_read(
-        session, await acknowledge_service(session, record_id, payload.revision_id, actor)
+        session,
+        await acknowledge_service(session, record_id, payload.revision_id, actor),
+        actor=actor,
     )
 
 
-@router.get("/customer-services/pending", response_model=list[MaintenanceRecordRead])
+@router.get(
+    "/customer-services/pending",
+    response_model=list[MaintenanceRecordRead | PublishedMaintenanceRead],
+)
 async def read_pending_customer_services(
     actor: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return [
-        await record_to_read(session, r) for r in await pending_customer_services(session, actor)
+        await record_to_read(session, r, actor=actor)
+        for r in await pending_customer_services(session, actor)
     ]
 
 
-@router.post("/maintenance-records/{record_id}/associate", response_model=MaintenanceRecordRead)
+@router.post(
+    "/maintenance-records/{record_id}/associate",
+    response_model=MaintenanceRecordRead | PublishedMaintenanceRead,
+)
 async def post_service_association(
     record_id: int,
     payload: ServiceAssociation,
@@ -221,7 +243,7 @@ async def post_service_association(
 ):
     record = await associate_service(session, record_id, payload, actor)
     response.status_code = 200 if actor.is_admin else 202
-    return await record_to_read(session, record)
+    return await record_to_read(session, record, actor=actor)
 
 
 @router.post("/maintenance-records/{record_id}/disputes", status_code=201)
@@ -359,7 +381,8 @@ async def post_resume_invitation(
 
 
 @router.get(
-    "/maintenance-records/{record_id}/duplicates", response_model=list[MaintenanceRecordRead]
+    "/maintenance-records/{record_id}/duplicates",
+    response_model=list[MaintenanceRecordRead | PublishedMaintenanceRead],
 )
 async def read_duplicate_candidates(
     record_id: int,
@@ -367,7 +390,7 @@ async def read_duplicate_candidates(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return [
-        await record_to_read(session, r)
+        await record_to_read(session, r, actor=actor)
         for r in await duplicate_candidates(session, record_id, actor)
     ]
 

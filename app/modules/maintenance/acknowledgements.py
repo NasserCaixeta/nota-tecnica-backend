@@ -1,10 +1,11 @@
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 
 from app.modules.audit.service import append_audit
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRevision
 from app.modules.maintenance.revisions import current_revision, locked_record
 from app.modules.vehicles.access import require_active_vehicle_link
+from app.modules.vehicles.models import GarageValidationStatus, VehicleUser, VerificationStatus
 
 
 async def acknowledge_service(session, record_id, revision_id, actor):
@@ -45,6 +46,17 @@ async def pending_customer_services(session, actor):
                 )
                 .where(
                     MaintenanceRevision.customer_user_id == actor.id,
+                    or_(
+                        MaintenanceRecord.author_user_id == actor.id,
+                        exists(
+                            select(VehicleUser.id).where(
+                                VehicleUser.user_id == actor.id,
+                                VehicleUser.vehicle_id == MaintenanceRecord.vehicle_id,
+                                VehicleUser.garage_status == GarageValidationStatus.ACTIVE,
+                                VehicleUser.verification_status == VerificationStatus.VERIFIED,
+                            )
+                        ).correlate(MaintenanceRecord),
+                    ),
                     MaintenanceRevision.customer_acknowledgement.in_(
                         ("awaiting_customer", "disputed")
                     ),

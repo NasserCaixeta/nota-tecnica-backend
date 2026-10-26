@@ -62,6 +62,7 @@ class MaintenanceRecordUpdate(BaseModel):
 
 class MaintenanceRecordRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+    visibility: Literal["private"] = "private"
 
     id: int
     vehicle_id: int

@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -14,6 +15,7 @@ class PublishedWorkshopRead(BaseModel):
 
 
 class PublishedMaintenanceRead(BaseModel):
+    visibility: Literal["published"] = "published"
     id: int
     service_date: date
     odometer: int

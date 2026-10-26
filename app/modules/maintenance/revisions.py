@@ -58,13 +58,35 @@ async def create_revision(session, record, *, actor_id):
     return revision
 
 
-async def record_to_read(session, record, actor=None):
+async def record_to_read(session, record, actor):
     revision = await current_revision(session, record)
     public_id = await session.scalar(
         published_maintenance_select()
         .with_only_columns(MaintenanceRecord.id)
         .where(MaintenanceRecord.id == record.id)
     )
+    from app.modules.vehicles.access import require_active_vehicle_link
+    from app.modules.workshops.claims import require_workshop_responsibility
+
+    involved = actor.is_admin or record.author_user_id == actor.id
+    if not involved and record.origin == "workshop":
+        try:
+            await require_workshop_responsibility(session, actor.id, record.workshop_id)
+            involved = True
+        except HTTPException:
+            pass
+    if not involved and revision.customer_user_id == actor.id:
+        await require_active_vehicle_link(session, actor.id, record.vehicle_id)
+        involved = True
+    if not involved:
+        await require_active_vehicle_link(session, actor.id, record.vehicle_id)
+        if public_id is None:
+            raise HTTPException(status_code=404, detail="Maintenance record not found")
+        from app.modules.maintenance.projections import build_published_maintenance_read
+        from app.modules.workshops.models import Workshop
+
+        workshop = await session.get(Workshop, record.workshop_id) if record.workshop_id else None
+        return build_published_maintenance_read(record, revision, workshop)
     values = {
         key: getattr(record, key)
         for key in MaintenanceRecordRead.model_fields
@@ -96,7 +118,13 @@ async def record_to_read(session, record, actor=None):
             permissions["can_invite"] = record.origin == "workshop"
             if record.origin == "customer":
                 await require_active_vehicle_link(session, actor.id, record.vehicle_id)
-            permissions["can_submit"] = revision.editorial_status == "draft"
+            from app.modules.maintenance.moderation import revision_evidence
+            from app.modules.maintenance.publication import SERVICE_EVIDENCE_TYPES
+
+            documents = await revision_evidence(session, revision.id)
+            permissions["can_submit"] = revision.editorial_status == "draft" and any(
+                d.storage_verified and d.document_type in SERVICE_EVIDENCE_TYPES for d in documents
+            )
         except HTTPException:
             pass
         if revision.customer_user_id == actor.id:

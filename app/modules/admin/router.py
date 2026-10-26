@@ -221,7 +221,9 @@ async def read_maintenance_reviews(
     actor: Annotated[User, Depends(get_current_admin_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return [await record_to_read(session, r) for r in await pending_maintenance(session)]
+    return [
+        await record_to_read(session, r, actor=actor) for r in await pending_maintenance(session)
+    ]
 
 
 @router.get("/maintenance-reviews/{record_id}")
@@ -231,7 +233,7 @@ async def read_maintenance_review_detail(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     record = await get_maintenance_record(session, record_id, actor)
-    result = await record_to_read(session, record)
+    result = await record_to_read(session, record, actor=actor)
     documents = await revision_evidence(session, record.current_revision_id)
     return {
         **result.model_dump(mode="json"),
@@ -247,7 +249,7 @@ async def patch_maintenance_review(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await record_to_read(
-        session, await review_maintenance(session, record_id, payload, actor)
+        session, await review_maintenance(session, record_id, payload, actor), actor=actor
     )
 
 
@@ -299,8 +301,8 @@ async def read_service_associations(
                 {
                     "id": item.id,
                     "reason": item.reason,
-                    "record": await record_to_read(session, first),
-                    "other_record": await record_to_read(session, second),
+                    "record": await record_to_read(session, first, actor=actor),
+                    "other_record": await record_to_read(session, second, actor=actor),
                 }
             )
     return result

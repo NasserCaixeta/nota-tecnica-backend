@@ -91,5 +91,9 @@ async def duplicate_candidates(session, record_id, actor):
             await get_maintenance_record(session, candidate.id, actor)
         except HTTPException:
             continue
-        visible.append(candidate)
+        from app.modules.maintenance.revisions import record_to_read
+
+        projection = await record_to_read(session, candidate, actor)
+        if projection.visibility == "private":
+            visible.append(candidate)
     return visible

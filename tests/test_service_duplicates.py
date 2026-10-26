@@ -85,7 +85,15 @@ async def test_two_origins_consolidate_into_one_public_identity(client, db_sessi
         doc = create_uploaded_document(
             client, v, h, maintenance_record_id=record["id"], document_type="invoice"
         )
-        submitted = submit(client, record, h)
+        current_record = client.get(f"/api/v1/maintenance-records/{record['id']}", headers=h).json()
+        if current_record["customer_acknowledgement"] == "awaiting_customer":
+            confirmation = client.post(
+                f"/api/v1/maintenance-records/{record['id']}/acknowledge",
+                headers=h,
+                json={"revision_id": current_record["current_revision_id"]},
+            )
+            assert confirmation.status_code == 200, confirmation.text
+        submitted = submit(client, current_record, h)
         assert submitted.status_code == 200, submitted.text
         assert (
             client.patch(
@@ -122,7 +130,9 @@ async def test_two_origins_consolidate_into_one_public_identity(client, db_sessi
         json={
             "other_record_id": second["id"],
             "revision_id": first["current_revision_id"],
-            "other_revision_id": second["current_revision_id"],
+            "other_revision_id": client.get(
+                f"/api/v1/maintenance-records/{second['id']}", headers=h
+            ).json()["current_revision_id"],
             "reason": "Same receipt confirmed",
         },
     )
