@@ -40,11 +40,11 @@ Aplicam-se P00–P03. Sem histórico completo de terceiros até P05. Preço e re
 
 **Interfaces:** `PUT /maintenance-records/{id}/review` recebe `revision_id`, `stars` 1–5 e comentário opcional; restrição única por manutenção/cliente, com versão associada. `PilotScoreInput(service_count: int, average_stars: Decimal | None, measured_deadlines: int, on_time_count: int)` e `calculate_pilot_score(data) -> PilotScore(score: Decimal | None, eligible_for_ranking: bool, sample_label: str)` em `scoring.py`. Resposta publica contagens por componente, versão e explicação.
 
-- [ ] Testar `N=10`, quatro estrelas, 8/10 no prazo: `assert result.score == Decimal('7.4')`; sem estrelas, prazo 8 e volume 5: `assert result.score == (Decimal('.4')*8 + Decimal('.2')*5)/Decimal('.6')`. Com `N=0`, sem nota/posição; `N=4`, amostra pequena; `N=5` só com volume, sem nota/posição. Nota inválida 0/6 retorna 422; responsável pela própria oficina recebe 403; revisão antiga não contribui.
-- [ ] Executar `uv run pytest tests/test_service_reviews.py tests/test_pilot_ranking.py -q`; confirmar falhas esperadas.
-- [ ] Calcular Decimal sem arredondar antes da ordenação; retornar nota exibida com uma casa decimal. Usar recorte cidade/UF/categoria antes das agregações. Excluir referência não verificada, serviço secundário associado e revisão contestada. Avaliação é opcional e editável pelo cliente, com auditoria; administrador modera comentário sem mudar estrelas. Empate usa volume e ID estável.
-- [ ] Executar testes de fórmula, avaliação e ranking existentes; conferir alteração imediata após disputa e reconfirmação. Não quebrar cálculo por número nulo ou lista sem prazos.
-- [ ] Commit sugerido: `feat: add verified service reviews and pilot ranking`.
+- [x] Testar `N=10`, quatro estrelas, 8/10 no prazo: `assert result.score == Decimal('7.4')`; sem estrelas, prazo 8 e volume 5: `assert result.score == (Decimal('.4')*8 + Decimal('.2')*5)/Decimal('.6')`. Com `N=0`, sem nota/posição; `N=4`, amostra pequena; `N=5` só com volume, sem nota/posição. Nota inválida 0/6 retorna 422; responsável pela própria oficina recebe 403; revisão antiga não contribui.
+- [x] Executar `uv run pytest tests/test_service_reviews.py tests/test_pilot_ranking.py -q`; confirmar falhas esperadas.
+- [x] Calcular Decimal sem arredondar antes da ordenação; retornar nota exibida com uma casa decimal. Usar recorte cidade/UF/categoria antes das agregações. Excluir referência não verificada, serviço secundário associado e revisão contestada. Avaliação é opcional e editável pelo cliente, com auditoria; administrador modera comentário sem mudar estrelas. Empate usa volume e ID estável.
+- [x] Executar testes de fórmula, avaliação e ranking existentes; conferir alteração imediata após disputa e reconfirmação. Não quebrar cálculo por número nulo ou lista sem prazos.
+- [x] Commit sugerido: `feat: add verified service reviews and pilot ranking`.
 
 ### Task 3 — T3: Perfil, filtros, indicadores e landing com dados reais
 

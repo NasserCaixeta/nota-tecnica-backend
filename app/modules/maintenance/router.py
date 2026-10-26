@@ -61,6 +61,7 @@ from app.modules.maintenance.service import (
     list_workshop_maintenance,
     update_maintenance_record,
 )
+from app.modules.ranking.reviews import ServiceReviewCreate, put_service_review
 from app.modules.users.models import User
 
 router = APIRouter(tags=["maintenance"])
@@ -412,3 +413,13 @@ async def post_intent_relationship(
     return await request_invitation_relationship(
         session, InvitationRelationship(token=invitation_token(item.nonce), vehicle=payload), actor
     )
+
+
+@router.put("/maintenance-records/{record_id}/review")
+async def put_maintenance_review(
+    record_id: int,
+    payload: ServiceReviewCreate,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await put_service_review(session, record_id, payload, actor)
