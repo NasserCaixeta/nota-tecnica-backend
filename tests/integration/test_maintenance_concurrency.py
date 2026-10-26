@@ -154,3 +154,57 @@ async def test_two_customer_confirmations_create_one_acknowledgement(pg_engine):
             )
             == 1
         )
+
+
+async def test_concurrent_dispute_decisions_do_not_override_customer_refusal(pg_engine):
+    from app.modules.maintenance.disputes import open_dispute, review_dispute
+    from app.modules.maintenance.models import MaintenanceRecord
+    from app.modules.maintenance.schemas import ServiceDisputeCreate, ServiceDisputeReview
+    from app.modules.vehicles.models import GarageValidationStatus, VehicleUser, VerificationStatus
+
+    factory, record_id, revision_id = await prepare_service(pg_engine)
+    async with factory() as session:
+        actor = await session.get(User, 3)
+        link = await session.scalar(select(VehicleUser).where(VehicleUser.user_id == 3))
+        link.verification_status = VerificationStatus.VERIFIED
+        link.garage_status = GarageValidationStatus.ACTIVE
+        await session.commit()
+        dispute = await open_dispute(
+            session,
+            record_id,
+            ServiceDisputeCreate(revision_id=revision_id, reason="Wrong parts"),
+            actor,
+        )
+        dispute_id = dispute.id
+
+    async def decide(actor_id):
+        async with factory() as session:
+            actor = await session.get(User, actor_id)
+            try:
+                await review_dispute(
+                    session,
+                    dispute_id,
+                    ServiceDisputeReview(
+                        expected_version=1, resolution="resolved", reason="Review concluded"
+                    ),
+                    actor,
+                )
+                return 200
+            except HTTPException as exc:
+                await session.rollback()
+                return exc.status_code
+
+    assert sorted(await asyncio.gather(decide(1), decide(2))) == [200, 409]
+    async with factory() as session:
+        revision = await session.get(MaintenanceRevision, revision_id)
+        record = await session.get(MaintenanceRecord, record_id)
+        assert revision.customer_acknowledgement == "disputed"
+        assert record.dispute_open is False
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(AuditEvent.action == "service_dispute.reviewed")
+            )
+            == 1
+        )

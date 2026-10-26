@@ -1,17 +1,30 @@
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.integrations.storage.r2 import StorageClient
 from app.modules.auth.dependencies import get_approved_participant, get_current_user
+from app.modules.documents.router import get_storage_client
+from app.modules.documents.schemas import DocumentUploadIntentCreate, DocumentUploadIntentRead
 from app.modules.maintenance.acknowledgements import acknowledge_service, pending_customer_services
+from app.modules.maintenance.disputes import (
+    dispute_to_read,
+    open_dispute,
+    reply_dispute,
+    require_dispute_reader,
+    upload_dispute_evidence,
+)
 from app.modules.maintenance.duplicates import associate_service
 from app.modules.maintenance.invitations import (
     accept_invitation,
     create_invitation,
     request_invitation_relationship,
 )
+from app.modules.maintenance.models import MaintenanceRevision, ServiceDispute
 from app.modules.maintenance.moderation import submit_maintenance
 from app.modules.maintenance.revisions import record_to_read
 from app.modules.maintenance.schemas import (
@@ -23,6 +36,8 @@ from app.modules.maintenance.schemas import (
     MaintenanceRecordUpdate,
     MaintenanceSubmit,
     ServiceAssociation,
+    ServiceDisputeCreate,
+    ServiceDisputeMessageCreate,
     WorkshopMaintenanceCreate,
 )
 from app.modules.maintenance.service import (
@@ -195,3 +210,85 @@ async def post_service_association(
     record = await associate_service(session, record_id, payload, actor)
     response.status_code = 200 if actor.is_admin else 202
     return await record_to_read(session, record)
+
+
+@router.post("/maintenance-records/{record_id}/disputes", status_code=201)
+async def post_service_dispute(
+    record_id: int,
+    payload: ServiceDisputeCreate,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await dispute_to_read(
+        session, await open_dispute(session, record_id, payload, actor), actor
+    )
+
+
+@router.get("/maintenance-records/{record_id}/revisions")
+async def read_service_revisions(
+    record_id: int,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    record = await get_maintenance_record(session, record_id, actor)
+    # Historical private data is restricted to the involved actors and administrators.
+    from app.modules.maintenance.revisions import current_revision
+    from app.modules.maintenance.service import can_operate_record
+
+    revision = await current_revision(session, record)
+    if not actor.is_admin and revision.customer_user_id != actor.id:
+        await can_operate_record(session, record, actor)
+    revisions = (
+        await session.scalars(
+            select(MaintenanceRevision)
+            .where(MaintenanceRevision.record_id == record_id)
+            .order_by(MaintenanceRevision.revision_number)
+        )
+    ).all()
+    return [
+        {c.name: getattr(r, c.name) for c in MaintenanceRevision.__table__.columns}
+        for r in revisions
+    ]
+
+
+@router.get("/maintenance-records/{record_id}/disputes")
+async def read_record_disputes(
+    record_id: int,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await get_maintenance_record(session, record_id, actor)
+    disputes = (
+        await session.scalars(select(ServiceDispute).where(ServiceDispute.record_id == record_id))
+    ).all()
+    return [
+        await dispute_to_read(session, await require_dispute_reader(session, d.id, actor), actor)
+        for d in disputes
+    ]
+
+
+@router.post("/service-disputes/{dispute_id}/messages")
+async def post_dispute_reply(
+    dispute_id: int,
+    payload: ServiceDisputeMessageCreate,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await dispute_to_read(
+        session, await reply_dispute(session, dispute_id, payload, actor), actor
+    )
+
+
+@router.post(
+    "/service-disputes/{dispute_id}/documents/upload-intents",
+    response_model=DocumentUploadIntentRead,
+    status_code=201,
+)
+async def post_dispute_document(
+    dispute_id: int,
+    payload: DocumentUploadIntentCreate,
+    actor: Annotated[User, Depends(get_approved_participant)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    storage: Annotated[Callable[[], StorageClient], Depends(get_storage_client)],
+):
+    return await upload_dispute_evidence(session, dispute_id, payload, actor, storage())

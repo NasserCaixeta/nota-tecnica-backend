@@ -91,6 +91,9 @@ class Document(Base):
     maintenance_revision_id: Mapped[int | None] = mapped_column(
         ForeignKey("maintenance_revisions.id"), nullable=True, index=True
     )
+    service_dispute_id: Mapped[int | None] = mapped_column(
+        ForeignKey("service_disputes.id"), nullable=True
+    )
     vehicle_link_id: Mapped[int | None] = mapped_column(
         ForeignKey("vehicle_users.id"),
         nullable=True,

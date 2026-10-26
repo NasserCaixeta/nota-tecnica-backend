@@ -181,3 +181,33 @@ class ServiceDuplicateProposal(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+
+
+class ServiceDispute(Base):
+    __tablename__ = "service_disputes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"), index=True)
+    revision_id: Mapped[int] = mapped_column(ForeignKey("maintenance_revisions.id"))
+    customer_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(24), default="open")
+    resolution: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    resolution_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_version: Mapped[int] = mapped_column(default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ServiceDisputeMessage(Base):
+    __tablename__ = "service_dispute_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dispute_id: Mapped[int] = mapped_column(ForeignKey("service_disputes.id"))
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

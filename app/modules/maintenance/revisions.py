@@ -38,7 +38,11 @@ async def create_revision(session, record, *, actor_id):
         customer_acknowledgement="author_acknowledged"
         if record.origin == "customer"
         else "awaiting_customer",
-        customer_user_id=record.author_user_id if record.origin == "customer" else None,
+        customer_user_id=record.author_user_id
+        if record.origin == "customer"
+        else previous.customer_user_id
+        if previous
+        else None,
     )
     session.add(revision)
     await session.flush()

@@ -64,11 +64,11 @@ Aplicam-se P00–P02. Todo serviço exige comprovante e análise de sua versão 
 
 **Interfaces:** `POST /maintenance-records/{id}/disputes` com motivo e versão; `GET /admin/service-disputes`; `PATCH /admin/service-disputes/{id}` com resolução `request_changes | reject | resolved`, motivo e versão; `PATCH /maintenance-records/{id}` cria nova revisão em mudança relevante. Documento de contestação usa propósito restrito ao seu remetente/admin. Manter decisões separadas do reconhecimento.
 
-- [ ] Testar serviço publicado → contestado: `assert eligible is False` e avaliação deixa de contribuir. Admin não pode converter recusa em `confirmed`. Edição de custo, oficina, data ou documento cria outra revisão com análise pendente e reconhecimento reiniciado; a versão antiga continua consultável pelos atores autorizados. Contestação após confirmação é permitida; reabertura sem nova justificativa é rejeitada.
-- [ ] Executar `uv run pytest tests/test_service_disputes.py -q`; confirmar falhas esperadas.
-- [ ] Implementar decisões com controle de versão e transação. Clientes podem contestar sem assinatura vigente; oficina só responde, não apaga disputa. Retirar publicação assim que houver disputa/mudança relevante e restaurar somente quando todos os requisitos da revisão atual estiverem satisfeitos. Encerramento registra justificativa; remoção física de histórico/decisões não é endpoint do piloto.
-- [ ] Executar testes de disputa e publicação com decisões concorrentes no PostgreSQL, sem duplicar eventos nem manter contribuição pública de versão inelegível.
-- [ ] Commit sugerido: `feat: preserve maintenance disputes and revision history`.
+- [x] Testar serviço publicado → contestado: `assert eligible is False` e avaliação deixa de contribuir. Admin não pode converter recusa em `confirmed`. Edição de custo, oficina, data ou documento cria outra revisão com análise pendente e reconhecimento reiniciado; a versão antiga continua consultável pelos atores autorizados. Contestação após confirmação é permitida; reabertura sem nova justificativa é rejeitada.
+- [x] Executar `uv run pytest tests/test_service_disputes.py -q`; confirmar falhas esperadas.
+- [x] Implementar decisões com controle de versão e transação. Clientes podem contestar sem assinatura vigente; oficina só responde, não apaga disputa. Retirar publicação assim que houver disputa/mudança relevante e restaurar somente quando todos os requisitos da revisão atual estiverem satisfeitos. Encerramento registra justificativa; remoção física de histórico/decisões não é endpoint do piloto.
+- [x] Executar testes de disputa e publicação com decisões concorrentes no PostgreSQL, sem duplicar eventos nem manter contribuição pública de versão inelegível.
+- [x] Commit sugerido: `feat: preserve maintenance disputes and revision history`.
 
 ### Task 5 — T5: Jornadas de cliente, oficina e administração conectadas
 

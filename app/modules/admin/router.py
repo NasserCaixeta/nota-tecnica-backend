@@ -19,13 +19,19 @@ from app.modules.admin.service import (
 from app.modules.auth.dependencies import get_current_admin_user
 from app.modules.documents.schemas import DocumentRead, DocumentReviewUpdate
 from app.modules.garage.schemas import AdminAdditionalDocumentsRequest, AdminGarageVehicleLinkRead
+from app.modules.maintenance.disputes import dispute_to_read, review_dispute
+from app.modules.maintenance.models import ServiceDispute
 from app.modules.maintenance.moderation import (
     pending_maintenance,
     review_maintenance,
     revision_evidence,
 )
 from app.modules.maintenance.revisions import record_to_read
-from app.modules.maintenance.schemas import MaintenanceRecordRead, MaintenanceReview
+from app.modules.maintenance.schemas import (
+    MaintenanceRecordRead,
+    MaintenanceReview,
+    ServiceDisputeReview,
+)
 from app.modules.maintenance.service import get_maintenance_record
 from app.modules.users.models import ParticipationStatus, User
 from app.modules.users.schemas import UserRead
@@ -242,4 +248,31 @@ async def patch_maintenance_review(
 ):
     return await record_to_read(
         session, await review_maintenance(session, record_id, payload, actor)
+    )
+
+
+@router.get("/service-disputes")
+async def read_service_disputes(
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    items = (
+        await session.scalars(
+            select(ServiceDispute)
+            .where(ServiceDispute.status == "open")
+            .order_by(ServiceDispute.id)
+        )
+    ).all()
+    return [await dispute_to_read(session, item, actor) for item in items]
+
+
+@router.patch("/service-disputes/{dispute_id}")
+async def patch_service_dispute(
+    dispute_id: int,
+    payload: ServiceDisputeReview,
+    actor: Annotated[User, Depends(get_current_admin_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await dispute_to_read(
+        session, await review_dispute(session, dispute_id, payload, actor), actor
     )

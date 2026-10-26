@@ -127,3 +127,20 @@ class ServiceAssociation(MaintenanceSubmit):
     other_revision_id: int = Field(ge=1)
     reason: str = Field(min_length=1, max_length=2000)
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class ServiceDisputeCreate(MaintenanceSubmit):
+    reason: str = Field(min_length=1, max_length=2000)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class ServiceDisputeReview(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    expected_version: int = Field(ge=1)
+    resolution: Literal["request_changes", "reject", "resolved"]
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ServiceDisputeMessageCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    body: str = Field(min_length=1, max_length=4000)
