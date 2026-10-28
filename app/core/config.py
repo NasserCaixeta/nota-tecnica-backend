@@ -61,6 +61,20 @@ class Settings(BaseSettings):
     recovery_ip_limit: int = Field(default=10, gt=0, alias="RECOVERY_IP_LIMIT")
     recovery_window_seconds: int = Field(default=900, gt=0, alias="RECOVERY_WINDOW_SECONDS")
 
+    register_rate_limit: int = Field(default=5, gt=0, alias="REGISTER_RATE_LIMIT")
+    register_rate_window_seconds: int = Field(
+        default=3600, gt=0, alias="REGISTER_RATE_WINDOW_SECONDS"
+    )
+    login_ip_rate_limit: int = Field(default=10, gt=0, alias="LOGIN_IP_RATE_LIMIT")
+    login_identity_rate_limit: int = Field(default=10, gt=0, alias="LOGIN_IDENTITY_RATE_LIMIT")
+    login_rate_window_seconds: int = Field(default=60, gt=0, alias="LOGIN_RATE_WINDOW_SECONDS")
+    query_rate_limit: int = Field(default=60, gt=0, alias="QUERY_RATE_LIMIT")
+    query_rate_window_seconds: int = Field(default=60, gt=0, alias="QUERY_RATE_WINDOW_SECONDS")
+    invitation_rate_limit: int = Field(default=10, gt=0, alias="INVITATION_RATE_LIMIT")
+    invitation_rate_window_seconds: int = Field(
+        default=3600, gt=0, alias="INVITATION_RATE_WINDOW_SECONDS"
+    )
+
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
     r2_secret_access_key: str = Field(default="", alias="R2_SECRET_ACCESS_KEY")

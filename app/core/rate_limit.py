@@ -1,8 +1,8 @@
 import hashlib
 import hmac
-from typing import Protocol
+from typing import Annotated, Protocol
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException, Request
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
@@ -67,3 +67,29 @@ async def enforce_rate_limit(
             "Limite de tentativas atingido. Tente novamente mais tarde.",
             headers={"Retry-After": str(max(1, ttl))},
         )
+
+
+async def enforce_query_budget(
+    request: Request, backend: Annotated[RateLimitBackend, Depends(get_rate_limit_backend)]
+):
+    settings = get_settings()
+    await enforce_rate_limit(
+        "query-ip",
+        request.client.host if request.client else "unknown",
+        settings.query_rate_limit,
+        settings.query_rate_window_seconds,
+        backend=backend,
+    )
+
+
+async def enforce_registration_budget(
+    request: Request, backend: Annotated[RateLimitBackend, Depends(get_rate_limit_backend)]
+):
+    settings = get_settings()
+    await enforce_rate_limit(
+        "register-ip",
+        request.client.host if request.client else "unknown",
+        settings.register_rate_limit,
+        settings.register_rate_window_seconds,
+        backend=backend,
+    )

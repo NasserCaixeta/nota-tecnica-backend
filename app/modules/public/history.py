@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import enforce_query_budget
 from app.db.session import get_db
 from app.modules.auth.dependencies import get_approved_participant
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRevision
@@ -20,7 +21,9 @@ from app.modules.users.models import User
 from app.modules.vehicles.models import Vehicle
 from app.modules.workshops.models import Workshop
 
-router = APIRouter(prefix="/history", tags=["history"])
+router = APIRouter(
+    prefix="/history", tags=["history"], dependencies=[Depends(enforce_query_budget)]
+)
 
 
 class HistoryAccessRead(BaseModel):

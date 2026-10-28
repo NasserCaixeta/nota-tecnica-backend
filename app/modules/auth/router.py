@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.rate_limit import RateLimitBackend, enforce_rate_limit, get_rate_limit_backend
+from app.core.rate_limit import (
+    RateLimitBackend,
+    enforce_rate_limit,
+    enforce_registration_budget,
+    get_rate_limit_backend,
+)
 from app.db.session import get_db
 from app.modules.auth.schemas import (
     ForgotPasswordRequest,
@@ -19,7 +24,12 @@ from app.modules.users.service import create_user, user_to_read
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_registration_budget)],
+)
 async def register_user(
     payload: UserCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
@@ -31,8 +41,25 @@ async def register_user(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
+    backend: Annotated[RateLimitBackend, Depends(get_rate_limit_backend)],
 ) -> TokenResponse:
+    settings = get_settings()
+    await enforce_rate_limit(
+        "login-ip",
+        request.client.host if request.client else "unknown",
+        settings.login_ip_rate_limit,
+        settings.login_rate_window_seconds,
+        backend=backend,
+    )
+    await enforce_rate_limit(
+        "login-identity",
+        str(payload.email),
+        settings.login_identity_rate_limit,
+        settings.login_rate_window_seconds,
+        backend=backend,
+    )
     user = await authenticate_user(session, str(payload.email), payload.password)
     return TokenResponse(access_token=create_user_access_token(user))
 

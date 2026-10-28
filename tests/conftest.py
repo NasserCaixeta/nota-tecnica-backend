@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
+from app.core.rate_limit import get_rate_limit_backend
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
@@ -41,6 +42,14 @@ async def client(db_session: AsyncSession) -> AsyncIterator[TestClient]:
     application = create_app()
     application.state.test_db_session = db_session
     application.dependency_overrides[get_db] = override_get_db
+
+    # Domain tests isolate external infrastructure. Budget tests replace this
+    # counter with a stateful clock; PostgreSQL/Redis integration tests use Redis.
+    class DomainCounter:
+        async def increment(self, key, window_seconds):
+            return 1, window_seconds
+
+    application.dependency_overrides[get_rate_limit_backend] = lambda: DomainCounter()
 
     with TestClient(application) as test_client:
         yield test_client

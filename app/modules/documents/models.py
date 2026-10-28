@@ -104,7 +104,7 @@ class Document(Base):
         nullable=False,
     )
     validation_document_type: Mapped[ValidationDocumentType | None] = mapped_column(
-        Enum(ValidationDocumentType, native_enum=False),
+        Enum(ValidationDocumentType, native_enum=False, length=39),
         nullable=True,
     )
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)

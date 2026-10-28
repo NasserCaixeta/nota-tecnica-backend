@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.rate_limit import RateLimitBackend, enforce_rate_limit, get_rate_limit_backend
 from app.db.session import get_db
 from app.integrations.storage.r2 import StorageClient
 from app.modules.auth.dependencies import get_approved_participant, get_current_user
@@ -182,7 +184,16 @@ async def post_service_invitation(
     payload: InvitationCreate,
     actor: Annotated[User, Depends(get_approved_participant)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    backend: Annotated[RateLimitBackend, Depends(get_rate_limit_backend)],
 ):
+    settings = get_settings()
+    await enforce_rate_limit(
+        "invitation-owner",
+        str(actor.id),
+        settings.invitation_rate_limit,
+        settings.invitation_rate_window_seconds,
+        backend=backend,
+    )
     return await create_invitation(session, record_id, payload, actor)
 
 

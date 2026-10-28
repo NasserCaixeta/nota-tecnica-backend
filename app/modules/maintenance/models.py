@@ -141,6 +141,7 @@ class MaintenanceRevision(Base):
 
 class ServiceInvitation(Base):
     __tablename__ = "service_invitations"
+    __table_args__ = (UniqueConstraint("token_hash", name="service_invitations_token_hash_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     record_id: Mapped[int] = mapped_column(ForeignKey("maintenance_records.id"), index=True)
