@@ -41,6 +41,7 @@ class User(Base):
     city: Mapped[str] = mapped_column(String(120), nullable=False)
     state: Mapped[str] = mapped_column(String(2), nullable=False)
     complement: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    auth_version: Mapped[int] = mapped_column(default=1, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     participation_status: Mapped[ParticipationStatus] = mapped_column(

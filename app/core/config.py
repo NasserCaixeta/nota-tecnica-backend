@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     smtp_username: str = Field(default="", alias="SMTP_USERNAME")
     smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
 
+    recovery_secret_key: SecretStr = Field(default=SecretStr(""), alias="RECOVERY_SECRET_KEY")
+    recovery_identity_limit: int = Field(default=3, gt=0, alias="RECOVERY_IDENTITY_LIMIT")
+    recovery_ip_limit: int = Field(default=10, gt=0, alias="RECOVERY_IP_LIMIT")
+    recovery_window_seconds: int = Field(default=900, gt=0, alias="RECOVERY_WINDOW_SECONDS")
+
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
     r2_secret_access_key: str = Field(default="", alias="R2_SECRET_ACCESS_KEY")

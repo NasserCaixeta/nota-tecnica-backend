@@ -10,6 +10,10 @@ from app.core.config import get_settings
 from app.modules.notifications.models import Notification, NotificationDelivery
 
 MESSAGES = {
+    "password_changed": (
+        "Senha alterada",
+        "As sessões anteriores foram encerradas. Entre novamente com sua nova senha.",
+    ),
     "workshop_pending": (
         "Solicitação de oficina pendente",
         "Uma solicitação de representação aguarda análise administrativa.",
@@ -111,7 +115,9 @@ async def enqueue_notification(
             )
             .returning(NotificationDelivery.id)
         )
-        if delivery_id is not None:
+        # Recovery uses periodic dispatch so response latency never depends on
+        # an account-specific broker connection. The durable outbox is unchanged.
+        if delivery_id is not None and kind != "password_recovery":
             session.info.setdefault("notification_delivery_ids", set()).add(delivery_id)
     return notification
 

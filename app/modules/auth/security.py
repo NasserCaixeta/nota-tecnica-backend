@@ -16,12 +16,14 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
 
-def create_access_token(subject: str, settings: Settings | None = None) -> str:
+def create_access_token(
+    subject: str, settings: Settings | None = None, *, auth_version: int = 1
+) -> str:
     resolved_settings = settings or get_settings()
     expires_at = datetime.now(UTC) + timedelta(
         minutes=resolved_settings.access_token_expire_minutes
     )
-    payload = {"sub": subject, "exp": expires_at}
+    payload = {"sub": subject, "exp": expires_at, "ver": auth_version}
     return jwt.encode(
         payload,
         resolved_settings.jwt_secret_key,

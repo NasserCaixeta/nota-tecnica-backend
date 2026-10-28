@@ -39,7 +39,7 @@ async def get_current_user(
         )
 
     user = await get_user_by_id(session, user_id)
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or payload.get("ver", 1) != user.auth_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",

@@ -40,6 +40,7 @@ from app.modules.ranking.reviews import (
     review_to_read,
 )
 from app.modules.users.models import ParticipationStatus, User
+from app.modules.users.requests import AccountRequest, AccountRequestRead
 from app.modules.users.schemas import UserRead
 from app.modules.users.service import user_to_read
 from app.modules.vehicles.models import VerificationStatus
@@ -337,3 +338,17 @@ async def read_service_review_comments(
         )
     ).all()
     return [review_to_read(r) for r in items]
+
+
+@router.get("/account-requests", response_model=list[AccountRequestRead])
+async def list_account_requests(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    _actor: Annotated[User, Depends(get_current_admin_user)],
+):
+    return list(
+        (
+            await session.scalars(
+                select(AccountRequest).order_by(AccountRequest.id.desc()).limit(100)
+            )
+        ).all()
+    )

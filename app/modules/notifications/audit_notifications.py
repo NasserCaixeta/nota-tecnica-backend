@@ -56,7 +56,16 @@ async def notify_for_audit(session, audit):
     recipients = set()
     kind, target_type, target_id = None, audit.target_type, audit.target_id
     action = audit.action
-    if action == "participant.review":
+    if action == "account_request.created":
+        from app.modules.users.requests import AccountRequest
+
+        request = await session.get(AccountRequest, target_id)
+        recipients = await administrative_recipients(session)
+        recipients.add(request.user_id)
+        kind = "account_request"
+    elif action == "auth.password_reset":
+        recipients, kind = {target_id}, "password_changed"
+    elif action == "participant.review":
         recipients, kind = {audit.target_id}, "participation_updated"
     elif action == "document.review":
         document = await session.get(Document, audit.target_id)

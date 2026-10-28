@@ -1,13 +1,19 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.modules.audit.service import append_audit
 from app.modules.auth.dependencies import get_current_user
 from app.modules.users.models import ParticipationStatus, User
+from app.modules.users.requests import (
+    AccountRequest,
+    AccountRequestCreate,
+    AccountRequestRead,
+    create_account_request,
+)
 from app.modules.users.schemas import UserProfileUpdate, UserRead
 from app.modules.users.service import user_to_read
 
@@ -59,22 +65,44 @@ async def update_current_profile(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> UserRead:
-    from app.modules.vehicles.models import VehicleUser, VerificationStatus
+    from app.modules.vehicles.models import GarageValidationStatus, VehicleUser, VerificationStatus
+    from app.modules.workshops.models import WorkshopClaim, WorkshopUser
 
+    await session.refresh(current_user, with_for_update=True)
     updates = payload.model_dump(exclude_unset=True)
     if "full_name" in updates and updates["full_name"] != current_user.full_name:
         verified_link = await session.scalar(
             select(VehicleUser.id)
             .where(
                 VehicleUser.user_id == current_user.id,
-                VehicleUser.verification_status == VerificationStatus.VERIFIED,
+                or_(
+                    VehicleUser.verification_status == VerificationStatus.VERIFIED,
+                    VehicleUser.garage_status == GarageValidationStatus.UNDER_REVIEW,
+                ),
             )
             .limit(1)
         )
-        if verified_link is not None:
+        claim = await session.scalar(
+            select(WorkshopClaim.id)
+            .where(
+                WorkshopClaim.user_id == current_user.id,
+                WorkshopClaim.status.in_((VerificationStatus.PENDING, VerificationStatus.VERIFIED)),
+            )
+            .limit(1)
+        )
+        representation = await session.scalar(
+            select(WorkshopUser.id)
+            .where(
+                WorkshopUser.user_id == current_user.id,
+                WorkshopUser.verification_status == VerificationStatus.VERIFIED,
+            )
+            .limit(1)
+        )
+        if verified_link is not None or claim is not None or representation is not None:
             raise HTTPException(
                 status_code=409, detail="Identity changes require administrative review"
             )
+        current_user.participation_version += 1
     for field, value in updates.items():
         setattr(current_user, field, value)
     await append_audit(
@@ -88,3 +116,58 @@ async def update_current_profile(
     await session.commit()
     await session.refresh(current_user)
     return await user_to_read(session, current_user)
+
+
+@router.post("/me/closure-requests", response_model=AccountRequestRead, status_code=201)
+async def request_account_closure(
+    payload: AccountRequestCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await create_account_request(session, current_user, "closure", payload.reason)
+
+
+@router.get("/me/closure-requests", response_model=list[AccountRequestRead])
+async def own_closure_requests(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return list(
+        (
+            await session.scalars(
+                select(AccountRequest)
+                .where(AccountRequest.user_id == current_user.id, AccountRequest.kind == "closure")
+                .order_by(AccountRequest.id.desc())
+            )
+        ).all()
+    )
+
+
+@router.post("/me/identity-requests", response_model=AccountRequestRead, status_code=201)
+async def request_identity_correction(
+    payload: AccountRequestCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await create_account_request(
+        session, current_user, "identity_correction", payload.reason
+    )
+
+
+@router.get("/me/identity-requests", response_model=list[AccountRequestRead])
+async def own_identity_requests(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return list(
+        (
+            await session.scalars(
+                select(AccountRequest)
+                .where(
+                    AccountRequest.user_id == current_user.id,
+                    AccountRequest.kind == "identity_correction",
+                )
+                .order_by(AccountRequest.id.desc())
+            )
+        ).all()
+    )

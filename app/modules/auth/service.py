@@ -18,4 +18,4 @@ async def authenticate_user(session: AsyncSession, email: str, password: str) ->
 
 
 def create_user_access_token(user: User) -> str:
-    return create_access_token(str(user.id))
+    return create_access_token(str(user.id), auth_version=user.auth_version)

@@ -6,11 +6,13 @@ class Base(DeclarativeBase):
 
 
 from app.modules.audit import models as audit_models  # noqa: E402,F401
+from app.modules.auth import models as auth_models  # noqa: E402,F401
 from app.modules.documents import models as document_models  # noqa: E402,F401
 from app.modules.maintenance import models as maintenance_models  # noqa: E402,F401
 from app.modules.notifications import models as notification_models  # noqa: E402,F401
 from app.modules.payments import models as payment_models  # noqa: E402,F401
 from app.modules.ranking import models as ranking_models  # noqa: E402,F401
 from app.modules.users import models as user_models  # noqa: E402,F401
+from app.modules.users import requests as account_request_models  # noqa: E402,F401
 from app.modules.vehicles import models as vehicle_models  # noqa: E402,F401
 from app.modules.workshops import models as workshop_models  # noqa: E402,F401

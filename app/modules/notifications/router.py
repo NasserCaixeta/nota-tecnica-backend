@@ -20,7 +20,17 @@ async def notification_read(session, notification):
 
     result = NotificationRead.model_validate(notification)
     target_type, target_id = notification.target_type, notification.target_id
-    if target_type == "document":
+    if target_type == "account_request":
+        from app.modules.users.requests import AccountRequest
+
+        request = await session.get(AccountRequest, target_id)
+        if request:
+            result.link = (
+                "/app/conta"
+                if request.user_id == notification.recipient_id
+                else "/admin/solicitacoes-conta"
+            )
+    elif target_type == "document":
         from app.modules.documents.models import Document
 
         document = await session.get(Document, target_id)
@@ -32,7 +42,9 @@ async def notification_read(session, notification):
             elif document.workshop_claim_id:
                 result.link = "/app/oficinas/reivindicar"
     elif target_type == "user":
-        result.link = "/app/participacao"
+        result.link = (
+            "/app/conta" if notification.kind == "password_changed" else "/app/participacao"
+        )
     elif target_type == "vehicle_link":
         link = await session.get(VehicleUser, target_id)
         if link:
