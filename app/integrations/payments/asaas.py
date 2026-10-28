@@ -7,6 +7,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.modules.payments.gateway import (
+    PAYMENT_REVERSED_STATES,
     CheckoutOrder,
     CheckoutSession,
     GatewayUnavailable,
@@ -90,22 +91,33 @@ class AsaasGateway:
                 response = await client.get("payments/" + quote(provider_payment_id, safe=""))
                 response.raise_for_status()
                 data = response.json()
-                customer_response = await client.get(
-                    "customers/" + quote(data["customer"], safe="")
-                )
-                customer_response.raise_for_status()
-                customer = customer_response.json()
-                if customer["id"] != data["customer"]:
-                    raise ValueError()
+                customer = {}
+                try:
+                    customer_response = await client.get(
+                        "customers/" + quote(data["customer"], safe="")
+                    )
+                    customer_response.raise_for_status()
+                    customer = customer_response.json()
+                    if customer["id"] != data["customer"]:
+                        raise ValueError()
+                except (httpx.HTTPError, ValueError, TypeError, KeyError):
+                    if data["status"] not in PAYMENT_REVERSED_STATES:
+                        raise
+                    # Canonical reversals of an already bound financial ID must
+                    # not be hidden by deleted/unavailable payer metadata.
+                    customer = {}
                 period_start = period_end = None
-                if data.get("subscription"):
+                if data.get("subscription") and data["status"] in {"CONFIRMED", "RECEIVED"}:
                     response = await client.get(
                         "subscriptions/" + quote(data["subscription"], safe="")
                     )
-                    response.raise_for_status()
-                    subscription = response.json()
-                    if subscription["id"] != data["subscription"]:
-                        raise ValueError()
+                    if response.status_code == 404:
+                        subscription = {}
+                    else:
+                        response.raise_for_status()
+                        subscription = response.json()
+                        if subscription["id"] != data["subscription"]:
+                            raise ValueError()
                     timezone = get_settings().asaas_event_timezone
                     if (
                         subscription.get("cycle") == "MONTHLY"

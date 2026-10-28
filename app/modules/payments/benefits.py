@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.audit.service import append_audit
 from app.modules.payments.gateway import ProviderPayment
 from app.modules.payments.models import (
     HistoryAccessGrant,
@@ -39,43 +40,84 @@ def valid_monthly_period(payment: ProviderPayment):
 
 
 async def grant_benefit(
-    session: AsyncSession, order: PaymentOrder, receipt: VerifiedPayment, payment: ProviderPayment
+    session: AsyncSession,
+    order: PaymentOrder,
+    receipt: VerifiedPayment,
+    payment: ProviderPayment,
+    event_id: int,
 ):
     if order.product == "history_access":
-        grant = await session.scalar(
+        benefit = await session.scalar(
             select(HistoryAccessGrant).where(HistoryAccessGrant.order_id == order.id)
         )
-        if grant is None:
-            session.add(
-                HistoryAccessGrant(
-                    order_id=order.id,
-                    payment_id=receipt.id,
-                    buyer_id=order.buyer_id,
-                    vehicle_id=order.vehicle_id,
-                    starts_at=utc(payment.confirmed_at),
-                    expires_at=utc(payment.confirmed_at) + timedelta(hours=720),
-                )
-            )
+        if benefit is not None:
+            return
+        benefit = HistoryAccessGrant(
+            order_id=order.id,
+            payment_id=receipt.id,
+            buyer_id=order.buyer_id,
+            vehicle_id=order.vehicle_id,
+            starts_at=utc(payment.confirmed_at),
+            expires_at=utc(payment.confirmed_at) + timedelta(hours=720),
+        )
+        target_type = "history_access_grant"
     else:
-        period = await session.scalar(
+        benefit = await session.scalar(
             select(SubscriptionPeriod).where(SubscriptionPeriod.payment_id == receipt.id)
         )
-        if period is None:
-            session.add(
-                SubscriptionPeriod(
-                    order_id=order.id,
-                    payment_id=receipt.id,
-                    buyer_id=order.buyer_id,
-                    provider_subscription_id=payment.subscription_id,
-                    starts_at=utc(payment.period_starts_at),
-                    expires_at=utc(payment.period_ends_at),
-                )
-            )
-        order.provider_subscription_id = payment.subscription_id
+        if benefit is not None:
+            return
+        benefit = SubscriptionPeriod(
+            order_id=order.id,
+            payment_id=receipt.id,
+            buyer_id=order.buyer_id,
+            provider_subscription_id=payment.subscription_id,
+            starts_at=utc(payment.period_starts_at),
+            expires_at=utc(payment.period_ends_at),
+        )
+        target_type = "subscription_period"
+    session.add(benefit)
+    await session.flush()
+    await append_audit(
+        session,
+        actor_id=None,
+        action="payments.benefit.granted",
+        target_type=target_type,
+        target_id=benefit.id,
+        version=1,
+        reason="verified_financial_confirmation",
+        metadata={
+            "order_id": order.id,
+            "payment_id": receipt.id,
+            "payment_event_id": event_id,
+            "product": order.product,
+            "environment": "sandbox",
+        },
+    )
 
 
-async def revoke_benefit(session: AsyncSession, receipt: VerifiedPayment, now: datetime):
-    for model in (HistoryAccessGrant, SubscriptionPeriod):
+async def revoke_benefit(
+    session: AsyncSession, receipt: VerifiedPayment, now: datetime, event_id: int
+):
+    for model, target_type in (
+        (HistoryAccessGrant, "history_access_grant"),
+        (SubscriptionPeriod, "subscription_period"),
+    ):
         benefit = await session.scalar(select(model).where(model.payment_id == receipt.id))
         if benefit is not None and benefit.revoked_at is None:
             benefit.revoked_at = now
+            await append_audit(
+                session,
+                actor_id=None,
+                action="payments.benefit.revoked",
+                target_type=target_type,
+                target_id=benefit.id,
+                version=2,
+                reason="canonical_financial_reversal",
+                metadata={
+                    "order_id": receipt.order_id,
+                    "payment_id": receipt.id,
+                    "payment_event_id": event_id,
+                    "environment": "sandbox",
+                },
+            )

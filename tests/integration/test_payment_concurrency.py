@@ -93,6 +93,7 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
     from app.modules.users.models import User
 
     monkeypatch.setenv("PAYMENTS_ENABLED", "true")
+    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", "separate-webhook-secret-at-least-32-characters")
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
     get_settings.cache_clear()

@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.audit.service import append_audit
 from app.modules.payments.gateway import GatewayUnavailable, GatewayUncertainOutcome, PaymentGateway
 from app.modules.payments.models import PaymentOrder, SubscriptionCancellation
 from app.modules.payments.service import find_order
@@ -25,7 +26,20 @@ async def reconcile_cancellation(session: AsyncSession, order_id: str, gateway: 
     except (GatewayUnavailable, GatewayUncertainOutcome):
         confirmed = False
     now = datetime.now(UTC)
-    cancellation.status = "confirmed" if confirmed else "reconciliation_required"
+    next_status = "confirmed" if confirmed else "reconciliation_required"
+    if cancellation.status != next_status:
+        cancellation.decision_version += 1
+        await append_audit(
+            session,
+            actor_id=None,
+            action="payments.cancellation." + next_status,
+            target_type="user_subscription",
+            target_id=order.buyer_id,
+            version=cancellation.decision_version,
+            reason="provider_cancellation_verified" if confirmed else "provider_outcome_uncertain",
+            metadata={"order_id": order.id, "environment": "sandbox"},
+        )
+    cancellation.status = next_status
     cancellation.confirmed_at = now if confirmed else None
     cancellation.next_attempt_at = None if confirmed else now + timedelta(minutes=5)
     await session.commit()
@@ -43,8 +57,20 @@ async def cancel_subscription(
     await session.refresh(order, with_for_update=True)
     cancellation = await session.get(SubscriptionCancellation, order.id)
     if cancellation is None:
-        cancellation = SubscriptionCancellation(order_id=order.id, status="pending")
+        cancellation = SubscriptionCancellation(
+            order_id=order.id, status="pending", decision_version=1
+        )
         session.add(cancellation)
+        await append_audit(
+            session,
+            actor_id=buyer.id,
+            action="payments.cancellation.requested",
+            target_type="user_subscription",
+            target_id=buyer.id,
+            version=1,
+            reason="buyer_requested_no_renewal",
+            metadata={"order_id": order.id, "environment": "sandbox"},
+        )
     await session.commit()
     return await reconcile_cancellation(session, order.id, gateway)
 

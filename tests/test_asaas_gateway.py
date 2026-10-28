@@ -197,3 +197,28 @@ async def test_malformed_canonical_response_is_a_safe_gateway_failure(body):
     gateway = AsaasGateway(api_key="secret", transport=httpx.MockTransport(respond))
     with pytest.raises(GatewayUnavailable):
         await gateway.fetch_payment("pay_1")
+
+
+async def test_canonical_refund_remains_available_after_subscription_is_removed():
+    from app.integrations.payments.asaas import AsaasGateway
+
+    def respond(request):
+        if "/payments/" in request.url.path:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "pay_1",
+                    "status": "REFUNDED",
+                    "value": 49,
+                    "customer": "cus_1",
+                    "subscription": "sub_1",
+                    "externalReference": "order",
+                },
+            )
+        return httpx.Response(404)
+
+    gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
+    payment = await gateway.fetch_payment("pay_1")
+    assert payment.state == "REFUNDED"
+    assert payment.subscription_id == "sub_1"
+    assert payment.period_ends_at is None

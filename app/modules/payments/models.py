@@ -86,6 +86,7 @@ class VerifiedPayment(Base):
     state: Mapped[str] = mapped_column(String(80))
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decision_version: Mapped[int] = mapped_column(default=0)
 
 
 class HistoryAccessGrant(Base):
@@ -120,8 +121,31 @@ class SubscriptionCancellation(Base):
     __tablename__ = "subscription_cancellations"
     order_id: Mapped[str] = mapped_column(ForeignKey("payment_orders.id"), primary_key=True)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    decision_version: Mapped[int] = mapped_column(default=1)
     requested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CheckoutEvent(Base):
+    __tablename__ = "checkout_events"
+    __table_args__ = (
+        UniqueConstraint("provider", "environment", "event_id", name="uq_checkout_event"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), default="asaas")
+    environment: Mapped[str] = mapped_column(String(16), default="sandbox")
+    event_id: Mapped[str] = mapped_column(String(200))
+    event_type: Mapped[str] = mapped_column(String(80))
+    provider_checkout_id: Mapped[str] = mapped_column(String(200), index=True)
+    order_reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(default=0)
+    last_error: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

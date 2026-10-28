@@ -82,7 +82,8 @@ Tipos de contrato são definidos nas tarefas donas. Consumidores importam esses 
 - [x] P02 concluído e verificado: backend 158 testes, frontend 28 testes, lint/format/build aprovados; documentos privados e análise por versão.
 - [x] P03 concluído e verificado: revisão independente e correções cobertas; suite conjunta com P04-T1: 208 backend/PostgreSQL e 42 frontend, lint/format/build aprovados. Registro: [execução e revisão](../reviews/2026-10-26-piloto-p03.md).
 - [x] P04 concluído e verificado: 225 backend/PostgreSQL, 48 frontend, lint/format/build aprovados; revisão independente e regressão de moderação corrigida. Registro: [execução e revisão](../reviews/2026-10-27-piloto-p04.md).
-- [ ] P05 concluído e verificado, incluindo homologação com provedor de testes.
+- [x] P05 implementado e verificado localmente: 292 testes backend / 58 frontend; [revisão e decisões](../reviews/2026-10-27-piloto-p05.md).
+- [ ] P05 homologado remotamente com provedor de testes: pendente de credenciais Sandbox e URL HTTPS autorizada.
 - [ ] P06 concluído e piloto pronto para decisão de disponibilização.
 
 Não há estimativa em dias: a duração depende da execução inicial das suites e da homologação das integrações. Registrar o resultado e o commit de cada entrega aqui durante a implementação.

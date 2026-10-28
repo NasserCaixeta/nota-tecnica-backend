@@ -163,6 +163,24 @@ async def test_cancellation_is_durable_and_preserves_confirmed_period(client, db
         == 200
     )
     assert gateway.calls == ["sub_1"]
+    from app.modules.audit.models import AuditEvent
+
+    decisions = list(
+        await db_session.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.action.like("payments.cancellation.%"))
+            .order_by(AuditEvent.id)
+        )
+    )
+    assert [event.action for event in decisions] == [
+        "payments.cancellation.requested",
+        "payments.cancellation.confirmed",
+    ]
+    assert [event.version for event in decisions] == [1, 2]
+    assert decisions[0].actor_id == user.id
+    assert decisions[1].actor_id is None
+    assert all(event.event_metadata["order_id"] == "subscription-order" for event in decisions)
+
     assert period.revoked_at is None
     assert (await get_garage_capacity(db_session, user.id, now)).limit == 5
     other = auth_headers(client, email="other@example.com", cpf="39053344705")
@@ -293,3 +311,43 @@ async def test_additional_vehicle_can_acknowledge_and_dispute_without_subscripti
         ).status_code
         == 201
     )
+
+
+async def test_refund_revokes_period_after_remote_subscription_deletion(client, db_session):
+    import httpx
+
+    from app.integrations.payments.asaas import AsaasGateway
+    from app.modules.payments.events import process_payment_event
+    from tests.test_payment_benefits import add_event
+
+    auth_headers(client)
+    user = await db_session.scalar(select(User).where(User.email == "driver@example.com"))
+    now = datetime.now(UTC)
+    period = await add_subscription_period(
+        db_session, user.id, now - timedelta(days=1), now + timedelta(days=30)
+    )
+
+    def respond(request):
+        if "/payments/" in request.url.path:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "pay_subscription",
+                    "status": "REFUNDED",
+                    "value": 49,
+                    "customer": "cus_1",
+                    "subscription": "sub_1",
+                    "externalReference": "subscription-order",
+                },
+            )
+        if "/customers/" in request.url.path:
+            return httpx.Response(
+                200, json={"id": "cus_1", "cpfCnpj": user.cpf, "email": user.email}
+            )
+        return httpx.Response(404)
+
+    gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
+    event = await add_event(db_session, payment_id="pay_subscription", kind="PAYMENT_REFUNDED")
+    await process_payment_event(db_session, event.id, gateway, now)
+    assert period.revoked_at is not None
+    assert event.status == "processed"

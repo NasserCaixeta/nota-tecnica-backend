@@ -16,7 +16,7 @@ from app.modules.payments.gateway import (
     PaymentGateway,
 )
 from app.modules.payments.models import PaymentOrder, PaymentProduct
-from app.modules.users.models import User
+from app.modules.users.models import ParticipationStatus, User
 from app.modules.vehicles.models import Vehicle
 
 PENDING_STATES = ("created", "checkout_pending", "reconciliation_required", "checkout_failed")
@@ -24,6 +24,12 @@ PENDING_STATES = ("created", "checkout_pending", "reconciliation_required", "che
 
 def checkout_config(product: PaymentProduct):
     settings = get_settings()
+    from app.modules.payments.configuration import webhook_configuration_ready
+
+    if not webhook_configuration_ready(settings):
+        raise HTTPException(
+            503, "Sandbox webhooks require a separate token of at least 32 characters"
+        )
     price = (
         settings.payments_history_price_cents
         if product == PaymentProduct.HISTORY_ACCESS
@@ -60,7 +66,14 @@ def checkout_snapshot(order: PaymentOrder) -> CheckoutOrder:
 
 async def find_order(session: AsyncSession, order_id: str, actor: User, *, buyer_only=False):
     order = await session.get(PaymentOrder, order_id, populate_existing=True)
-    if order is None or (order.buyer_id != actor.id and (buyer_only or not actor.is_admin)):
+    if order is None or (
+        order.buyer_id != actor.id
+        and (
+            buyer_only
+            or not actor.is_admin
+            or actor.participation_status != ParticipationStatus.APPROVED
+        )
+    ):
         raise HTTPException(404, "Payment order not found")
     return order
 

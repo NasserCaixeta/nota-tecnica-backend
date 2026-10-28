@@ -35,6 +35,8 @@ def checkout_gateway(client, monkeypatch):
     from app.modules.payments.router import get_payment_gateway
 
     monkeypatch.setenv("PAYMENTS_ENABLED", "true")
+    monkeypatch.setenv("ASAAS_API_KEY", "sandbox-test-key")
+    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", "separate-webhook-secret-at-least-32-characters")
     monkeypatch.setenv("PAYMENTS_HISTORY_PRICE_CENTS", "1900")
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
@@ -209,4 +211,41 @@ async def test_expired_benefit_does_not_create_duplicate_remote_subscription(
     )
     response = client.post("/api/v1/payments/subscription-checkouts", headers=h, json={})
     assert response.status_code == 409
+    assert checkout_gateway.created == []
+
+
+async def test_suspended_admin_cannot_read_another_buyers_order(
+    client, db_session, checkout_gateway
+):
+    from sqlalchemy import select
+
+    from app.modules.users.models import ParticipationStatus, User
+
+    owner_headers = auth_headers(client)
+    response = client.post(
+        "/api/v1/payments/subscription-checkouts", headers=owner_headers, json={}
+    )
+    admin_headers = auth_headers(client, email="admin-other@example.com", cpf="39053344705")
+    admin = await db_session.scalar(select(User).where(User.email == "admin-other@example.com"))
+    admin.is_admin = True
+    await db_session.commit()
+    url = f"/api/v1/payments/orders/{response.json()['id']}"
+    assert client.get(url, headers=admin_headers).status_code == 200
+    admin.participation_status = ParticipationStatus.SUSPENDED
+    await db_session.commit()
+    assert client.get(url, headers=admin_headers).status_code == 404
+    assert client.get(url, headers=owner_headers).status_code == 200
+
+
+@pytest.mark.parametrize("webhook_token", ["", "sandbox-test-key"])
+def test_checkout_unavailable_when_webhook_cannot_authenticate(
+    client, checkout_gateway, monkeypatch, webhook_token
+):
+    monkeypatch.setenv("ASAAS_API_KEY", "sandbox-test-key")
+    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", webhook_token)
+    get_settings.cache_clear()
+    headers = auth_headers(client)
+    assert client.get("/api/v1/payments/config").json()["enabled"] is False
+    response = client.post("/api/v1/payments/subscription-checkouts", headers=headers, json={})
+    assert response.status_code == 503
     assert checkout_gateway.created == []

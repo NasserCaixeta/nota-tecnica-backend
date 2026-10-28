@@ -50,3 +50,16 @@ class PaymentGateway(Protocol):
     async def reconcile_checkout(self, order: CheckoutOrder) -> CheckoutSession | None: ...
     async def fetch_payment(self, provider_payment_id: str) -> ProviderPayment: ...
     async def cancel_subscription(self, provider_subscription_id: str) -> bool: ...
+
+
+PAYMENT_REVERSED_STATES = frozenset(
+    {
+        "REFUNDED",
+        "REFUND_REQUESTED",
+        "REFUND_IN_PROGRESS",
+        "PARTIALLY_REFUNDED",
+        "CHARGEBACK_REQUESTED",
+        "CHARGEBACK_DISPUTE",
+        "AWAITING_CHARGEBACK_REVERSAL",
+    }
+)

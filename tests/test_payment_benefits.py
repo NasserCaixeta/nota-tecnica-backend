@@ -287,3 +287,93 @@ async def test_later_receipt_cannot_require_a_new_boundary_for_already_confirmed
     assert second.status == "processed"
     assert order.state == "paid"
     assert await db_session.scalar(select(func.count()).select_from(SubscriptionPeriod)) == 1
+
+
+async def test_subscription_can_be_cancelled_while_time_is_awaiting_reconciliation(
+    client, db_session
+):
+    from app.modules.payments.events import process_payment_event
+    from app.modules.payments.readers import subscription_read
+
+    order, gateway = await prepare_payment(client, db_session, product="garage_monthly")
+    gateway.payment = replace(gateway.payment, subscription_id="sub_1", confirmed_at=None)
+    event = await add_event(db_session)
+    await process_payment_event(db_session, event.id, gateway, datetime(2026, 10, 27, tzinfo=UTC))
+    assert order.provider_subscription_id == "sub_1"
+    summary = await subscription_read(db_session, order.buyer_id)
+    assert summary.subscription.order_id == order.id
+    assert summary.can_start_checkout is False
+    assert summary.period is None
+    from app.modules.payments.router import get_payment_gateway
+    from tests.test_auth_users import login
+
+    async def cancel_remote(subscription_id):
+        assert subscription_id == "sub_1"
+        return True
+
+    gateway.cancel_subscription = cancel_remote
+    client.app.dependency_overrides[get_payment_gateway] = lambda: gateway
+    headers = {"Authorization": f"Bearer {login(client, email='driver@example.com')}"}
+    response = client.post(f"/api/v1/payments/subscriptions/{order.id}/cancel", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["status"] == "confirmed"
+
+
+async def test_payment_decisions_are_audited_once_in_the_same_transaction(client, db_session):
+    from app.modules.audit.models import AuditEvent
+    from app.modules.payments.events import process_payment_event
+
+    order, gateway = await prepare_payment(client, db_session)
+    event = await add_event(db_session)
+    now = datetime(2026, 10, 27, tzinfo=UTC)
+    await process_payment_event(db_session, event.id, gateway, now)
+    duplicate = await add_event(db_session, event_id="evt_2")
+    await process_payment_event(db_session, duplicate.id, gateway, now)
+    granted = list(
+        await db_session.scalars(
+            select(AuditEvent).where(AuditEvent.action == "payments.benefit.granted")
+        )
+    )
+    assert len(granted) == 1
+    assert granted[0].actor_id is None
+    assert granted[0].version == 1
+    assert granted[0].event_metadata["payment_event_id"] == event.id
+    assert granted[0].event_metadata["order_id"] == order.id
+    gateway.payment = replace(gateway.payment, state="REFUNDED")
+    refund = await add_event(db_session, event_id="evt_refund", kind="PAYMENT_REFUNDED")
+    await process_payment_event(db_session, refund.id, gateway, now)
+    revoked = list(
+        await db_session.scalars(
+            select(AuditEvent).where(AuditEvent.action == "payments.benefit.revoked")
+        )
+    )
+    assert len(revoked) == 1
+    assert revoked[0].version == 2
+    assert revoked[0].event_metadata["payment_event_id"] == refund.id
+
+
+async def test_failed_financial_audit_rolls_back_benefit_and_event(client, db_session, monkeypatch):
+    from app.modules.audit.models import AuditEvent
+    from app.modules.payments.events import process_payment_event
+    from app.modules.payments.models import HistoryAccessGrant, PaymentEvent, VerifiedPayment
+
+    _, gateway = await prepare_payment(client, db_session)
+    event = await add_event(db_session)
+    event_id = event.id
+
+    async def unavailable(*args, **kwargs):
+        raise RuntimeError("Audit unavailable")
+
+    monkeypatch.setattr("app.modules.payments.benefits.append_audit", unavailable)
+    with pytest.raises(RuntimeError, match="Audit unavailable"):
+        await process_payment_event(
+            db_session, event_id, gateway, datetime(2026, 10, 27, tzinfo=UTC)
+        )
+    await db_session.rollback()
+    assert await db_session.scalar(select(HistoryAccessGrant)) is None
+    assert await db_session.scalar(select(VerifiedPayment)) is None
+    assert (
+        await db_session.scalar(select(AuditEvent).where(AuditEvent.action.like("payments.%")))
+        is None
+    )
+    assert (await db_session.get(PaymentEvent, event_id)).status == "pending"

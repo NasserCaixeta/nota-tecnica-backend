@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.audit.service import append_audit
 from app.modules.payments.benefits import (
     grant_benefit,
     revoke_benefit,
@@ -11,6 +12,7 @@ from app.modules.payments.benefits import (
     valid_confirmation,
     valid_monthly_period,
 )
+from app.modules.payments.gateway import PAYMENT_REVERSED_STATES as REVERSED
 from app.modules.payments.gateway import GatewayUnavailable, GatewayUncertainOutcome, PaymentGateway
 from app.modules.payments.models import (
     PaymentEvent,
@@ -21,15 +23,6 @@ from app.modules.payments.models import (
 from app.modules.users.models import User
 
 PAID = {"CONFIRMED", "RECEIVED"}
-REVERSED = {
-    "REFUNDED",
-    "REFUND_REQUESTED",
-    "REFUND_IN_PROGRESS",
-    "PARTIALLY_REFUNDED",
-    "CHARGEBACK_REQUESTED",
-    "CHARGEBACK_DISPUTE",
-    "AWAITING_CHARGEBACK_REVERSAL",
-}
 
 
 async def pending_payment_event_ids(
@@ -125,9 +118,8 @@ async def process_payment_event(
     # A previously verified financial ID is a durable binding. A later contact
     # change cannot prevent a canonical refund from revoking its own benefit.
     if receipt is not None and payment.state in REVERSED:
-        receipt.state = payment.state
-        receipt.checked_at = now
-        await revoke_benefit(session, receipt, now)
+        await audit_payment_state(session, receipt, payment.state, event.id, now)
+        await revoke_benefit(session, receipt, now, event.id)
         order.state = "refunded"
         event.status = "processed"
         event.last_error = None
@@ -159,6 +151,7 @@ async def process_payment_event(
         defer(event, now, "payment_order_mismatch", reconciliation=True)
         await session.commit()
         return
+    is_new_receipt = receipt is None
     if receipt is None:
         receipt = VerifiedPayment(
             order_id=order.id, provider_payment_id=payment.id, state=payment.state, checked_at=now
@@ -169,10 +162,29 @@ async def process_payment_event(
         defer(event, now, "payment_mapping_mismatch", reconciliation=True)
         await session.commit()
         return
-    receipt.state = payment.state
-    receipt.checked_at = now
+    await audit_payment_state(
+        session, receipt, payment.state, event.id, now, initial=is_new_receipt
+    )
+    if (
+        order.product == "garage_monthly"
+        and payment.subscription_id
+        and order.provider_subscription_id is None
+    ):
+        # A verified recurring contract must remain cancellable even while its
+        # benefit timestamp/period is being reconciled.
+        order.provider_subscription_id = payment.subscription_id
+        await append_audit(
+            session,
+            actor_id=None,
+            action="payments.subscription.linked",
+            target_type="verified_payment",
+            target_id=receipt.id,
+            version=receipt.decision_version,
+            reason="canonical_subscription_identified",
+            metadata={"order_id": order.id, "payment_event_id": event.id},
+        )
     if payment.state in REVERSED:
-        await revoke_benefit(session, receipt, now)
+        await revoke_benefit(session, receipt, now, event.id)
         order.state = "refunded"
     elif payment.state in PAID:
         if receipt.confirmed_at is not None:
@@ -203,12 +215,12 @@ async def process_payment_event(
             await session.commit()
             return
         receipt.confirmed_at = utc(payment.confirmed_at)
-        await grant_benefit(session, order, receipt, payment)
+        await grant_benefit(session, order, receipt, payment, event.id)
         order.state = "paid"
         if order.provider_checkout_id is None and payment.checkout_id:
             order.provider_checkout_id = payment.checkout_id
     elif payment.state in {"DELETED", "CANCELLED", "REPROVED_BY_RISK_ANALYSIS"}:
-        await revoke_benefit(session, receipt, now)
+        await revoke_benefit(session, receipt, now, event.id)
         order.state = "cancelled" if payment.state in {"DELETED", "CANCELLED"} else "rejected"
     else:
         # Pending/overdue renewal neither creates a period nor revokes earlier paid ones.
@@ -220,3 +232,27 @@ async def process_payment_event(
     event.next_attempt_at = None
     event.processed_at = now
     await session.commit()
+
+
+async def audit_payment_state(session, receipt, state, event_id, now, *, initial=False):
+    previous = None if initial else receipt.state
+    receipt.checked_at = now
+    if initial or receipt.state != state:
+        receipt.decision_version += 1
+        receipt.state = state
+        await append_audit(
+            session,
+            actor_id=None,
+            action="payments.state.verified",
+            target_type="verified_payment",
+            target_id=receipt.id,
+            version=receipt.decision_version,
+            reason="canonical_provider_state",
+            metadata={
+                "order_id": receipt.order_id,
+                "payment_event_id": event_id,
+                "previous_state": previous,
+                "state": state,
+                "environment": "sandbox",
+            },
+        )

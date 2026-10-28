@@ -14,6 +14,7 @@ def test_payment_config_exposes_explicit_test_prices_without_credentials(client,
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
     monkeypatch.setenv("ASAAS_API_KEY", "sandbox-only-secret")
+    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", "separate-webhook-secret-at-least-32-characters")
     get_settings.cache_clear()
     response = client.get("/api/v1/payments/config")
     assert response.status_code == 200
