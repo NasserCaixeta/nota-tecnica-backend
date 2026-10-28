@@ -37,3 +37,6 @@ docs/superpowers/validation/*
 !.env.example
 
 !docs/superpowers/reviews/2026-10-28-piloto-p06.md
+
+# Private browser automation artifacts
+.playwright-mcp/
