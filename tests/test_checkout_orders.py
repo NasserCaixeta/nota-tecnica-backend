@@ -48,7 +48,8 @@ def checkout_gateway(client, monkeypatch):
 async def test_checkout_uses_server_price_and_creation_does_not_mark_paid(
     client, db_session, checkout_gateway
 ):
-    h, _, _, _, _, _ = await approve_customer_service(client, db_session)
+    await approve_customer_service(client, db_session)
+    h = auth_headers(client, email="buyer@example.com", cpf="39053344705")
     bad = client.post(
         "/api/v1/payments/history-checkouts",
         headers=h,
@@ -69,7 +70,7 @@ async def test_checkout_uses_server_price_and_creation_does_not_mark_paid(
     )
     assert repeated.json()["id"] == order["id"]
     assert len(checkout_gateway.created) == 1
-    other = auth_headers(client, email="other@example.com", cpf="39053344705")
+    other = auth_headers(client, email="other@example.com", cpf="11144477735")
     assert client.get(f"/api/v1/payments/orders/{order['id']}", headers=other).status_code == 404
 
 
@@ -170,3 +171,42 @@ async def test_checkout_response_cannot_overwrite_a_financial_confirmation(
     )
     assert response.status_code == 201
     assert response.json()["state"] == "paid"
+
+
+async def test_existing_relationship_or_paid_access_prevents_second_purchase(
+    client, db_session, checkout_gateway
+):
+    from sqlalchemy import select
+
+    from app.modules.users.models import User
+    from tests.test_paid_history_access import add_history_grant
+
+    owner, vehicle_id, _, _, _, _ = await approve_customer_service(client, db_session)
+    url = "/api/v1/payments/history-checkouts"
+    assert client.post(url, headers=owner, json={"plate": "ABC1D23"}).status_code == 409
+    buyer_headers = auth_headers(client, email="buyer@example.com", cpf="39053344705")
+    buyer = await db_session.scalar(select(User).where(User.email == "buyer@example.com"))
+    await add_history_grant(db_session, buyer.id, vehicle_id)
+    assert client.post(url, headers=buyer_headers, json={"plate": "ABC1D23"}).status_code == 409
+    assert checkout_gateway.created == []
+
+
+async def test_expired_benefit_does_not_create_duplicate_remote_subscription(
+    client, db_session, checkout_gateway
+):
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select
+
+    from app.modules.users.models import User
+    from tests.test_garage_subscription import add_subscription_period
+
+    h = auth_headers(client)
+    buyer = await db_session.scalar(select(User).where(User.email == "driver@example.com"))
+    now = datetime.now(UTC)
+    await add_subscription_period(
+        db_session, buyer.id, now - timedelta(days=32), now - timedelta(days=1)
+    )
+    response = client.post("/api/v1/payments/subscription-checkouts", headers=h, json={})
+    assert response.status_code == 409
+    assert checkout_gateway.created == []

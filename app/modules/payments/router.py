@@ -12,6 +12,7 @@ from app.modules.payments.models import PaymentProduct
 from app.modules.payments.schemas import (
     HistoryCheckoutCreate,
     PaymentOrderRead,
+    SubscriptionCancellationRead,
     SubscriptionCheckoutCreate,
 )
 from app.modules.payments.service import create_order, find_order, retry_order
@@ -61,3 +62,12 @@ async def retry_checkout(order_id: str, session: Session, buyer: Participant, ga
 from app.modules.payments.webhooks import router as webhook_router  # noqa: E402
 
 router.include_router(webhook_router)
+
+
+@router.post("/subscriptions/{order_id}/cancel", response_model=SubscriptionCancellationRead)
+async def cancel_garage_subscription(
+    order_id: str, session: Session, buyer: Participant, gateway: Gateway
+):
+    from app.modules.payments.cancellations import cancel_subscription
+
+    return await cancel_subscription(session, buyer, order_id, gateway)

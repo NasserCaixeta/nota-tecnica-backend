@@ -12,7 +12,12 @@ from app.modules.payments.benefits import (
     valid_monthly_period,
 )
 from app.modules.payments.gateway import GatewayUnavailable, GatewayUncertainOutcome, PaymentGateway
-from app.modules.payments.models import PaymentEvent, PaymentOrder, VerifiedPayment
+from app.modules.payments.models import (
+    PaymentEvent,
+    PaymentOrder,
+    SubscriptionPeriod,
+    VerifiedPayment,
+)
 from app.modules.users.models import User
 
 PAID = {"CONFIRMED", "RECEIVED"}
@@ -113,6 +118,10 @@ async def process_payment_event(
         await session.commit()
         return
     order = matches[0]
+    if session.get_bind().dialect.name == "postgresql":
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(730043, :buyer_id)"), {"buyer_id": order.buyer_id}
+        )
     # A previously verified financial ID is a durable binding. A later contact
     # change cannot prevent a canonical refund from revoking its own benefit.
     if receipt is not None and payment.state in REVERSED:
@@ -177,14 +186,23 @@ async def process_payment_event(
             )
         ):
             payment = replace(payment, confirmed_at=utc(event.provider_created_at))
+        existing_period = (
+            await session.scalar(
+                select(SubscriptionPeriod.id).where(SubscriptionPeriod.payment_id == receipt.id)
+            )
+            if order.product == "garage_monthly"
+            else None
+        )
         if not valid_confirmation(order, payment, now) or (
-            order.product == "garage_monthly" and not valid_monthly_period(payment)
+            order.product == "garage_monthly"
+            and existing_period is None
+            and not valid_monthly_period(payment)
         ):
             order.state = "reconciliation_required"
             defer(event, now, "unverified_payment_time_or_period", reconciliation=True)
             await session.commit()
             return
-        receipt.confirmed_at = payment.confirmed_at
+        receipt.confirmed_at = utc(payment.confirmed_at)
         await grant_benefit(session, order, receipt, payment)
         order.state = "paid"
         if order.provider_checkout_id is None and payment.checkout_id:

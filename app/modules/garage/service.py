@@ -218,7 +218,9 @@ async def build_garage_vehicle_item(
         model_year=(link.declared_vehicle_data or {}).get("model_year", vehicle.model_year),
         relationship_type=link.relationship_type,
         garage_status=link.garage_status,
-        commercial_access="free" if commercial_write else "read_only",
+        commercial_access=("free" if vehicle.id == capacity.free_vehicle_id else "subscription")
+        if commercial_write
+        else "read_only",
         admin_review_note=link.admin_review_note,
         verification_rejection_reason=link.verification_rejection_reason,
         review_attempts=link.review_attempts,

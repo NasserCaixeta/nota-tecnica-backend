@@ -122,3 +122,8 @@ class AdminAdditionalDocumentsRequest(BaseModel):
 
 class MoneyAmount(BaseModel):
     amount: Decimal
+
+
+class GarageFreeVehicleUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    vehicle_id: int = Field(gt=0)

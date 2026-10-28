@@ -11,6 +11,7 @@ from app.modules.documents.schemas import DocumentUploadIntentCreate, DocumentUp
 from app.modules.documents.service import create_vehicle_link_document_upload_intent
 from app.modules.garage.schemas import (
     GarageDashboard,
+    GarageFreeVehicleUpdate,
     GarageRelationshipUpdate,
     GarageReviewSubmitResponse,
     GarageVehicleCreate,
@@ -120,3 +121,30 @@ async def create_garage_document_upload_intent(
         current_user,
         storage_client_factory(),
     )
+
+
+@router.patch("/free-vehicle", response_model=GarageDashboard)
+async def select_free_vehicle(
+    payload: GarageFreeVehicleUpdate,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_approved_participant)],
+):
+    from fastapi import HTTPException
+    from sqlalchemy import select
+
+    from app.modules.garage.policy import lock_garage
+    from app.modules.vehicles.access import require_active_vehicle_link
+    from app.modules.vehicles.models import GarageMembership
+
+    await lock_garage(session, user.id)
+    membership = await session.scalar(
+        select(GarageMembership.id).where(
+            GarageMembership.user_id == user.id, GarageMembership.vehicle_id == payload.vehicle_id
+        )
+    )
+    if membership is None:
+        raise HTTPException(404, "Garage vehicle not found")
+    await require_active_vehicle_link(session, user.id, payload.vehicle_id)
+    user.free_garage_vehicle_id = payload.vehicle_id
+    await session.commit()
+    return await get_garage_dashboard(session, user)

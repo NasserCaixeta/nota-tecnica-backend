@@ -164,3 +164,21 @@ async def test_missing_verified_next_due_date_does_not_invent_subscription_end(m
     payment = await gateway.fetch_payment("pay_1")
     assert payment.period_ends_at is None
     get_settings.cache_clear()
+
+
+async def test_subscription_cancel_reconciles_before_delete_and_verifies_result():
+    from app.integrations.payments.asaas import AsaasGateway
+
+    requests = []
+
+    def respond(request):
+        requests.append(request.method)
+        if len(requests) == 1:
+            return httpx.Response(200, json={"id": "sub_1", "status": "ACTIVE"})
+        if request.method == "DELETE":
+            return httpx.Response(200, json={"id": "sub_1", "deleted": True})
+        return httpx.Response(404)
+
+    gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
+    assert await gateway.cancel_subscription("sub_1") is True
+    assert requests == ["GET", "DELETE", "GET"]

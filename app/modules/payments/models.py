@@ -114,3 +114,14 @@ class SubscriptionPeriod(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SubscriptionCancellation(Base):
+    __tablename__ = "subscription_cancellations"
+    order_id: Mapped[str] = mapped_column(ForeignKey("payment_orders.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

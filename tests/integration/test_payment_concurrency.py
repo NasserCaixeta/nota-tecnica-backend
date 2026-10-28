@@ -79,3 +79,95 @@ async def test_simultaneous_payment_confirmations_create_one_benefit(pg_engine):
             "processed",
             "processed",
         ]
+
+
+async def test_checkout_racing_confirmation_cannot_create_second_subscription(
+    pg_engine, monkeypatch
+):
+    from fastapi import HTTPException
+
+    from app.core.config import get_settings
+    from app.modules.payments.gateway import CheckoutSession
+    from app.modules.payments.models import PaymentProduct
+    from app.modules.payments.service import create_order
+    from app.modules.users.models import User
+
+    monkeypatch.setenv("PAYMENTS_ENABLED", "true")
+    monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
+    monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
+    get_settings.cache_clear()
+    factory = await prepare_users(pg_engine)
+    now = datetime.now(UTC)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = (
+        start.replace(year=start.year + 1, month=1)
+        if start.month == 12
+        else start.replace(month=start.month + 1)
+    )
+    async with factory() as session:
+        session.add(
+            PaymentOrder(
+                id="order",
+                buyer_id=3,
+                product="garage_monthly",
+                amount_cents=4900,
+                currency="BRL",
+                environment="sandbox",
+                state="checkout_pending",
+                callback_url="https://pilot.test",
+                created_at=start,
+            )
+        )
+        event = PaymentEvent(
+            provider="asaas",
+            environment="sandbox",
+            event_id="evt_1",
+            event_type="PAYMENT_CONFIRMED",
+            provider_payment_id="pay_1",
+        )
+        session.add(event)
+        await session.commit()
+        event_id = event.id
+
+    class Gateway(FinancialGateway):
+        creations = []
+
+        async def create_checkout(self, order):
+            self.creations.append(order.id)
+            return CheckoutSession("unexpected", "https://sandbox.asaas.com/test")
+
+    gateway = Gateway(
+        ProviderPayment(
+            id="pay_1",
+            state="CONFIRMED",
+            order_reference="order",
+            amount_cents=4900,
+            currency="BRL",
+            customer_id="cus_1",
+            customer_cpf="93541134780",
+            customer_email="driver@example.com",
+            confirmed_at=start,
+            subscription_id="sub_1",
+            period_starts_at=start,
+            period_ends_at=end,
+        )
+    )
+
+    async def checkout():
+        async with factory() as session:
+            user = await session.get(User, 3)
+            try:
+                order = await create_order(session, user, PaymentProduct.GARAGE_MONTHLY, gateway)
+                assert order.id == "order"
+            except HTTPException as exc:
+                assert exc.status_code == 409
+
+    async def confirm():
+        async with factory() as session:
+            await process_payment_event(session, event_id, gateway, now)
+
+    await asyncio.gather(confirm(), checkout())
+    async with factory() as session:
+        assert await session.scalar(select(func.count()).select_from(PaymentOrder)) == 1
+    assert gateway.creations == []
+    get_settings.cache_clear()

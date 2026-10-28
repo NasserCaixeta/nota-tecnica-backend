@@ -52,8 +52,8 @@ async def grant_benefit(
                     payment_id=receipt.id,
                     buyer_id=order.buyer_id,
                     vehicle_id=order.vehicle_id,
-                    starts_at=payment.confirmed_at,
-                    expires_at=payment.confirmed_at + timedelta(hours=720),
+                    starts_at=utc(payment.confirmed_at),
+                    expires_at=utc(payment.confirmed_at) + timedelta(hours=720),
                 )
             )
     else:
@@ -67,8 +67,8 @@ async def grant_benefit(
                     payment_id=receipt.id,
                     buyer_id=order.buyer_id,
                     provider_subscription_id=payment.subscription_id,
-                    starts_at=payment.period_starts_at,
-                    expires_at=payment.period_ends_at,
+                    starts_at=utc(payment.period_starts_at),
+                    expires_at=utc(payment.period_ends_at),
                 )
             )
         order.provider_subscription_id = payment.subscription_id

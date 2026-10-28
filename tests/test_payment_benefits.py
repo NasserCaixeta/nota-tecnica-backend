@@ -244,3 +244,46 @@ async def test_known_payment_refund_revokes_even_if_payer_contact_later_changes(
     refund = await add_event(db_session, event_id="evt_refund", kind="PAYMENT_REFUNDED")
     await process_payment_event(db_session, refund.id, gateway, now)
     assert (await db_session.scalar(select(HistoryAccessGrant))).revoked_at is not None
+
+
+async def test_history_720_hours_uses_utc_across_daylight_saving_change(client, db_session):
+    from zoneinfo import ZoneInfo
+
+    from app.modules.payments.events import process_payment_event
+    from app.modules.payments.models import HistoryAccessGrant
+
+    _, gateway = await prepare_payment(client, db_session)
+    gateway.payment = replace(
+        gateway.payment,
+        confirmed_at=datetime(2026, 10, 15, 12, tzinfo=ZoneInfo("America/New_York")),
+    )
+    event = await add_event(db_session)
+    await process_payment_event(db_session, event.id, gateway, datetime(2026, 11, 20, tzinfo=UTC))
+    grant = await db_session.scalar(select(HistoryAccessGrant))
+    assert grant.starts_at.replace(tzinfo=UTC) == datetime(2026, 10, 15, 16, tzinfo=UTC)
+    assert grant.expires_at.replace(tzinfo=UTC) == datetime(2026, 11, 14, 16, tzinfo=UTC)
+
+
+async def test_later_receipt_cannot_require_a_new_boundary_for_already_confirmed_period(
+    client, db_session
+):
+    from app.modules.payments.events import process_payment_event
+    from app.modules.payments.models import SubscriptionPeriod
+
+    order, gateway = await prepare_payment(client, db_session, product="garage_monthly")
+    gateway.payment = replace(
+        gateway.payment,
+        subscription_id="sub_1",
+        period_starts_at=datetime(2026, 10, 1, tzinfo=UTC),
+        period_ends_at=datetime(2026, 11, 1, tzinfo=UTC),
+    )
+    first = await add_event(db_session)
+    await process_payment_event(db_session, first.id, gateway, datetime(2026, 10, 27, tzinfo=UTC))
+    gateway.payment = replace(
+        gateway.payment, state="RECEIVED", period_starts_at=None, period_ends_at=None
+    )
+    second = await add_event(db_session, event_id="evt_received", kind="PAYMENT_RECEIVED")
+    await process_payment_event(db_session, second.id, gateway, datetime(2026, 11, 20, tzinfo=UTC))
+    assert second.status == "processed"
+    assert order.state == "paid"
+    assert await db_session.scalar(select(func.count()).select_from(SubscriptionPeriod)) == 1

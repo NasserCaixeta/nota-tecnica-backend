@@ -30,3 +30,11 @@ class PaymentOrderRead(BaseModel):
     state: str
     checkout_url: str | None
     created_at: datetime
+
+
+class SubscriptionCancellationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    order_id: str
+    status: str
+    requested_at: datetime
+    confirmed_at: datetime | None

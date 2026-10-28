@@ -140,3 +140,24 @@ class AsaasGateway:
             )
         except (httpx.HTTPError, ValueError, TypeError, KeyError, ZoneInfoNotFoundError):
             raise GatewayUnavailable() from None
+
+    async def cancel_subscription(self, provider_subscription_id: str) -> bool:
+        path = "subscriptions/" + quote(provider_subscription_id, safe="")
+        try:
+            async with self.client() as client:
+                response = await client.get(path)
+                if response.status_code == 404:
+                    return True
+                response.raise_for_status()
+                if response.json().get("deleted") is True:
+                    return True
+                response = await client.delete(path)
+                if response.status_code != 404:
+                    response.raise_for_status()
+                response = await client.get(path)
+                if response.status_code == 404:
+                    return True
+                response.raise_for_status()
+                return response.json().get("deleted") is True
+        except (httpx.HTTPError, ValueError, TypeError):
+            raise GatewayUncertainOutcome() from None
