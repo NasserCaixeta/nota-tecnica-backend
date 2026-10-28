@@ -143,3 +143,91 @@ async def test_report_cohort_uses_canonical_publication_and_exact_revision(clien
     report = await build_report(db_session, today, today)
     assert report["cohort_current_state"]["services_created"] == 1
     assert report["completeness"]["published_sample"] == 0
+
+
+async def test_uvicorn_exception_output_hides_payload_and_traceback(client, caplog, monkeypatch):
+    import asyncio
+    import logging
+
+    import h11
+    from uvicorn.protocols.http.flow_control import FlowControl
+    from uvicorn.protocols.http.h11_impl import RequestResponseCycle
+
+    @client.app.get("/server-error")
+    async def failure():
+        raise RuntimeError("private-server-marker cpf-secret signed-url-secret")
+
+    client.app.debug = False
+    client.app.middleware_stack = None
+    logger = logging.getLogger("uvicorn.error")
+    monkeypatch.setattr(logger, "disabled", False)
+    monkeypatch.setattr(logger, "propagate", True)
+
+    class MemoryTransport(asyncio.Transport):
+        def __init__(self):
+            self.output = b""
+
+        def write(self, data):
+            self.output += data
+
+        def close(self):
+            pass
+
+    transport = MemoryTransport()
+    conn = h11.Connection(h11.SERVER)
+    conn.receive_data(b"GET /server-error HTTP/1.1\r\nHost: testserver\r\n\r\n")
+    conn.next_event()
+    conn.next_event()
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/server-error",
+        "raw_path": b"/server-error",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "client": ("127.0.0.1", 1234),
+        "server": ("127.0.0.1", 8000),
+    }
+    cycle = RequestResponseCycle(
+        scope=scope,
+        conn=conn,
+        transport=transport,
+        flow=FlowControl(transport),
+        logger=logger,
+        access_logger=logging.getLogger("uvicorn.access"),
+        access_log=False,
+        default_headers=[],
+        message_event=asyncio.Event(),
+        on_response=lambda: None,
+    )
+    await cycle.run_asgi(client.app)
+    assert b"500 Internal Server Error" in transport.output
+    assert b"private-server-marker" not in transport.output
+    assert "RuntimeError" in caplog.text
+    assert "private-server-marker" not in caplog.text
+    assert "Traceback" not in caplog.text
+
+
+def test_celery_failure_logging_preserves_type_without_exception_value(caplog, monkeypatch):
+    import logging
+
+    from app.integrations.queue.celery_app import create_celery_app
+
+    logger = logging.getLogger("celery.app.trace")
+    monkeypatch.setattr(logger, "disabled", False)
+    app = create_celery_app()
+    app.conf.update(task_always_eager=True, task_store_eager_result=False)
+
+    @app.task(name="privacy.synthetic_failure")
+    def failure():
+        raise RuntimeError("private-worker-marker")
+
+    result = failure.apply(throw=False)
+    assert result.failed()
+    assert "RuntimeError" in caplog.text
+    assert "private-worker-marker" not in caplog.text
+    assert "Traceback" not in caplog.text

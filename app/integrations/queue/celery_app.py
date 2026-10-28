@@ -1,9 +1,11 @@
 from celery import Celery
 
 from app.core.config import Settings, get_settings
+from app.core.logging import configure_logging
 
 
 def create_celery_app(settings: Settings | None = None) -> Celery:
+    configure_logging()
     resolved_settings = settings or get_settings()
     celery_app = Celery(
         "nota_tecnica",
