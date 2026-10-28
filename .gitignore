@@ -35,3 +35,5 @@ docs/superpowers/validation/*
 !docs/superpowers/validation/2026-10-21-piloto-operacao.md
 .env.*
 !.env.example
+
+!docs/superpowers/reviews/2026-10-28-piloto-p06.md

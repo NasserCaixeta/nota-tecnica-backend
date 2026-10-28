@@ -88,3 +88,9 @@ Logs locais sanitizados: `/private/tmp/p06-t3-full.log`, `/private/tmp/p06-ci-ui
 ## Preparação operacional P06-T4
 
 Backend327/327 com PostgreSQL/Redis e Ruff; dois Docker builds locais concluídos. Smoke de contêiner validou readiness real, SPA profunda, proxy da API, CLI agregado e ausência de .env/.git/testes na imagem API. Compose e ambos workflows passaram validação local (actionlint). Frontend mantém62/62 da T3; T4 altera apenas embalagem/documentação. Logs locais: `/private/tmp/p06-t4-full.log`, `/private/tmp/p06-docker-api.log`, `/private/tmp/p06-docker-ui.log`, `/private/tmp/p06-container-smoke.log`. [Roteiro e proposta de ambiente/custos](2026-10-21-piloto-operacao.md). Nenhum deploy ou envio de e-mail externo ocorreu.
+
+## Fechamento após revisão independente
+
+Par final de código: backend `41c119ebcccd28378080504ce1041b71f9015380`, frontend `5a8f38050d02b711181ac33bebe7c4e887851327`. Após correções: **331/331 backend** com PostgreSQL/Redis, Ruff check/format em210arquivos e **6/6 jornadas** repetidas nesse par em12,3s. Frontend mantém os62testes/lint/build/audit0 da T3; embalagem final passou Docker build/smoke. Migração agora também demonstra rollback de DDL intermediário e retry com dados preservados.
+
+Logs locais: `/private/tmp/p06-review-full.log`, `/private/tmp/p06-e2e-release.log`, `/private/tmp/p06-migration-rollback.log`, `/private/tmp/p06-container-smoke-final.log`. [Revisão, commits, decisões e ajuste menor adiado](../reviews/2026-10-28-piloto-p06.md). Nenhum push ou deploy foi executado.
