@@ -1,5 +1,5 @@
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -138,7 +138,15 @@ class AsaasGateway:
                 period_starts_at=period_start,
                 period_ends_at=period_end,
             )
-        except (httpx.HTTPError, ValueError, TypeError, KeyError, ZoneInfoNotFoundError):
+        except (
+            httpx.HTTPError,
+            ValueError,
+            TypeError,
+            KeyError,
+            AttributeError,
+            InvalidOperation,
+            ZoneInfoNotFoundError,
+        ):
             raise GatewayUnavailable() from None
 
     async def cancel_subscription(self, provider_subscription_id: str) -> bool:
@@ -159,5 +167,5 @@ class AsaasGateway:
                     return True
                 response.raise_for_status()
                 return response.json().get("deleted") is True
-        except (httpx.HTTPError, ValueError, TypeError):
+        except (httpx.HTTPError, ValueError, TypeError, AttributeError):
             raise GatewayUncertainOutcome() from None

@@ -182,3 +182,18 @@ async def test_subscription_cancel_reconciles_before_delete_and_verifies_result(
     gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
     assert await gateway.cancel_subscription("sub_1") is True
     assert requests == ["GET", "DELETE", "GET"]
+
+
+@pytest.mark.parametrize("body", [[], {"id": "pay_1", "customer": "cus_1", "value": "not-money"}])
+async def test_malformed_canonical_response_is_a_safe_gateway_failure(body):
+    from app.integrations.payments.asaas import AsaasGateway
+    from app.modules.payments.gateway import GatewayUnavailable
+
+    def respond(request):
+        return httpx.Response(
+            200, json={"id": "cus_1"} if "customers/" in request.url.path else body
+        )
+
+    gateway = AsaasGateway(api_key="secret", transport=httpx.MockTransport(respond))
+    with pytest.raises(GatewayUnavailable):
+        await gateway.fetch_payment("pay_1")

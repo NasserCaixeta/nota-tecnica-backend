@@ -3,7 +3,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import exists, select, text, update
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -105,33 +105,13 @@ async def create_order(
             text("SELECT pg_advisory_xact_lock(730043, :buyer_id)"), {"buyer_id": buyer.id}
         )
     if product == PaymentProduct.GARAGE_MONTHLY:
-        from app.modules.payments.models import SubscriptionCancellation, SubscriptionPeriod
+        from app.modules.payments.access import (
+            active_subscription_period,
+            uncancelled_subscription_order,
+        )
 
-        active = await session.scalar(
-            select(SubscriptionPeriod.id)
-            .where(
-                SubscriptionPeriod.buyer_id == buyer.id,
-                SubscriptionPeriod.revoked_at.is_(None),
-                SubscriptionPeriod.starts_at <= datetime.now(UTC),
-                SubscriptionPeriod.expires_at > datetime.now(UTC),
-            )
-            .limit(1)
-        )
-        remote_subscription = await session.scalar(
-            select(PaymentOrder.id)
-            .where(
-                PaymentOrder.buyer_id == buyer.id,
-                PaymentOrder.product == "garage_monthly",
-                PaymentOrder.provider_subscription_id.is_not(None),
-                ~exists(
-                    select(SubscriptionCancellation.order_id).where(
-                        SubscriptionCancellation.order_id == PaymentOrder.id,
-                        SubscriptionCancellation.status == "confirmed",
-                    )
-                ),
-            )
-            .limit(1)
-        )
+        active = await active_subscription_period(session, buyer.id, datetime.now(UTC))
+        remote_subscription = await uncancelled_subscription_order(session, buyer.id)
         if active is not None or remote_subscription is not None:
             raise HTTPException(409, "An active garage subscription already exists")
     vehicle_id = None
