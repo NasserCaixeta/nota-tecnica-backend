@@ -14,9 +14,16 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
         task_serializer="json",
         result_serializer="json",
         accept_content=["json"],
-        imports=("app.integrations.queue.payment_tasks",),
+        imports=(
+            "app.integrations.queue.payment_tasks",
+            "app.integrations.queue.notification_tasks",
+        ),
         beat_schedule={
-            "recover-pending-payments": {"task": "payments.recover_pending", "schedule": 60.0}
+            "recover-pending-payments": {"task": "payments.recover_pending", "schedule": 60.0},
+            "recover-pending-notifications": {
+                "task": "notifications.recover_pending",
+                "schedule": 60.0,
+            },
         },
         broker_connection_timeout=2,
         task_publish_retry=False,

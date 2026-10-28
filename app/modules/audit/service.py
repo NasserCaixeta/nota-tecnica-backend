@@ -25,4 +25,7 @@ async def append_audit(
     )
     session.add(event)
     await session.flush()
+    from app.modules.notifications.audit_notifications import notify_for_audit
+
+    await notify_for_audit(session, event)
     return event

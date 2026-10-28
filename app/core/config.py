@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     asaas_webhook_token: SecretStr = Field(default=SecretStr(""), alias="ASAAS_WEBHOOK_TOKEN")
     asaas_event_timezone: str = Field(default="", alias="ASAAS_EVENT_TIMEZONE")
 
+    smtp_enabled: bool = Field(default=False, alias="SMTP_ENABLED")
+    smtp_capture_only: bool = Field(default=True, alias="SMTP_CAPTURE_ONLY")
+    smtp_host: str = Field(default="localhost", alias="SMTP_HOST")
+    smtp_port: int = Field(default=1025, alias="SMTP_PORT")
+    smtp_from_address: str = Field(default="piloto@nota-tecnica.local", alias="SMTP_FROM_ADDRESS")
+    smtp_starttls: bool = Field(default=False, alias="SMTP_STARTTLS")
+    smtp_username: str = Field(default="", alias="SMTP_USERNAME")
+    smtp_password: SecretStr = Field(default=SecretStr(""), alias="SMTP_PASSWORD")
+
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
     r2_secret_access_key: str = Field(default="", alias="R2_SECRET_ACCESS_KEY")
