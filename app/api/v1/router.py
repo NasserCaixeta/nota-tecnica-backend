@@ -6,6 +6,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.documents.router import router as documents_router
 from app.modules.garage.router import router as garage_router
 from app.modules.maintenance.router import router as maintenance_router
+from app.modules.payments.router import router as payments_router
 from app.modules.public.router import router as public_router
 from app.modules.ranking.router import router as ranking_router
 from app.modules.users.router import router as users_router
@@ -26,3 +27,5 @@ router.include_router(documents_router)
 router.include_router(garage_router)
 router.include_router(public_router)
 router.include_router(ranking_router)
+
+router.include_router(payments_router)

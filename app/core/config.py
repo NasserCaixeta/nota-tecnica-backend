@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     invitation_secret_key: str = Field(default="", alias="INVITATION_SECRET_KEY")
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
+
+    payments_enabled: bool = Field(default=False, alias="PAYMENTS_ENABLED")
+    payments_history_price_cents: int | None = Field(
+        default=None, gt=0, alias="PAYMENTS_HISTORY_PRICE_CENTS"
+    )
+    payments_subscription_price_cents: int | None = Field(
+        default=None, gt=0, alias="PAYMENTS_SUBSCRIPTION_PRICE_CENTS"
+    )
+    payments_callback_base_url: str = Field(default="", alias="PAYMENTS_CALLBACK_BASE_URL")
+    asaas_api_key: SecretStr = Field(default=SecretStr(""), alias="ASAAS_API_KEY")
 
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
