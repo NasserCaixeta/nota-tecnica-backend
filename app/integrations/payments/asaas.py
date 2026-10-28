@@ -1,8 +1,11 @@
+from datetime import datetime
 from decimal import Decimal
 from urllib.parse import quote
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
+from app.core.config import get_settings
 from app.modules.payments.gateway import (
     CheckoutOrder,
     CheckoutSession,
@@ -10,6 +13,7 @@ from app.modules.payments.gateway import (
     GatewayUncertainOutcome,
     ProviderPayment,
 )
+from app.modules.payments.webhooks import parse_event_time
 
 SANDBOX_API = "https://api-sandbox.asaas.com/v3"
 
@@ -86,17 +90,53 @@ class AsaasGateway:
                 response = await client.get("payments/" + quote(provider_payment_id, safe=""))
                 response.raise_for_status()
                 data = response.json()
+                customer_response = await client.get(
+                    "customers/" + quote(data["customer"], safe="")
+                )
+                customer_response.raise_for_status()
+                customer = customer_response.json()
+                if customer["id"] != data["customer"]:
+                    raise ValueError()
+                period_start = period_end = None
+                if data.get("subscription"):
+                    response = await client.get(
+                        "subscriptions/" + quote(data["subscription"], safe="")
+                    )
+                    response.raise_for_status()
+                    subscription = response.json()
+                    if subscription["id"] != data["subscription"]:
+                        raise ValueError()
+                    timezone = get_settings().asaas_event_timezone
+                    if (
+                        subscription.get("cycle") == "MONTHLY"
+                        and timezone
+                        and data.get("dueDate")
+                        and subscription.get("nextDueDate")
+                    ):
+                        period_start = datetime.strptime(data["dueDate"], "%Y-%m-%d").replace(
+                            tzinfo=ZoneInfo(timezone)
+                        )
+                        period_end = datetime.strptime(
+                            subscription["nextDueDate"], "%Y-%m-%d"
+                        ).replace(tzinfo=ZoneInfo(timezone))
             amount = Decimal(str(data["value"])) * 100
-            if amount != amount.to_integral_value():
+            if not amount.is_finite() or amount != amount.to_integral_value():
                 raise ValueError()
             return ProviderPayment(
                 id=data["id"],
                 state=data["status"],
                 order_reference=data.get("externalReference"),
                 amount_cents=int(amount),
-                currency="BRL",
+                currency=data.get("currency", "BRL"),
                 customer_id=data["customer"],
                 subscription_id=data.get("subscription"),
+                checkout_id=data.get("checkoutSession"),
+                confirmed_at=parse_event_time(data.get("confirmedDate")),
+                customer_cpf="".join(c for c in customer.get("cpfCnpj", "") if c.isdigit()),
+                customer_email=customer.get("email"),
+                billing_type=data.get("billingType"),
+                period_starts_at=period_start,
+                period_ends_at=period_end,
             )
-        except (httpx.HTTPError, ValueError, TypeError, KeyError):
+        except (httpx.HTTPError, ValueError, TypeError, KeyError, ZoneInfoNotFoundError):
             raise GatewayUnavailable() from None

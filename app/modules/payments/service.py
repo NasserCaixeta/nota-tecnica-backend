@@ -3,7 +3,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -74,14 +74,19 @@ async def update_checkout(
             if create
             else await gateway.reconcile_checkout(checkout_snapshot(order))
         )
-        order.state = "checkout_pending" if result else "reconciliation_required"
+        values = {"state": "checkout_pending" if result else "reconciliation_required"}
         if result:
-            order.provider_checkout_id = result.provider_id
-            order.checkout_url = result.url
+            values.update(provider_checkout_id=result.provider_id, checkout_url=result.url)
     except GatewayUncertainOutcome:
-        order.state = "reconciliation_required"
+        values = {"state": "reconciliation_required"}
     except GatewayUnavailable:
-        order.state = "checkout_failed" if create else "reconciliation_required"
+        values = {"state": "checkout_failed" if create else "reconciliation_required"}
+    # A webhook may confirm payment while checkout creation is still returning.
+    await session.execute(
+        update(PaymentOrder)
+        .where(PaymentOrder.id == order.id, PaymentOrder.state.in_(PENDING_STATES))
+        .values(**values)
+    )
     await session.commit()
     await session.refresh(order)
     return order

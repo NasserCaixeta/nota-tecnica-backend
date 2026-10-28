@@ -56,3 +56,8 @@ async def read_order(
 @router.post("/orders/{order_id}/retry", response_model=PaymentOrderRead)
 async def retry_checkout(order_id: str, session: Session, buyer: Participant, gateway: Gateway):
     return await retry_order(session, buyer, order_id, gateway)
+
+
+from app.modules.payments.webhooks import router as webhook_router  # noqa: E402
+
+router.include_router(webhook_router)

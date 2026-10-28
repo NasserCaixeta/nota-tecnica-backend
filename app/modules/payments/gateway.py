@@ -29,6 +29,12 @@ class ProviderPayment:
     customer_id: str
     subscription_id: str | None = None
     confirmed_at: datetime | None = None
+    customer_cpf: str | None = None
+    customer_email: str | None = None
+    checkout_id: str | None = None
+    billing_type: str | None = None
+    period_starts_at: datetime | None = None
+    period_ends_at: datetime | None = None
 
 
 class GatewayUncertainOutcome(RuntimeError):

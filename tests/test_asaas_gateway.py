@@ -84,3 +84,83 @@ async def test_asaas_detached_checkout_has_no_subscription():
     assert bodies[0]["chargeTypes"] == ["DETACHED"]
     assert bodies[0]["billingTypes"] == ["PIX", "CREDIT_CARD"]
     assert "subscription" not in bodies[0]
+
+
+async def test_canonical_payment_loads_payer_and_verified_monthly_due_dates(monkeypatch):
+    from app.core.config import get_settings
+    from app.integrations.payments.asaas import AsaasGateway
+
+    monkeypatch.setenv("ASAAS_EVENT_TIMEZONE", "America/Sao_Paulo")
+    get_settings.cache_clear()
+    paths = []
+
+    def respond(request):
+        paths.append(request.url.path)
+        data = {
+            "/v3/payments/pay_1": {
+                "id": "pay_1",
+                "status": "CONFIRMED",
+                "value": 49,
+                "customer": "cus_1",
+                "subscription": "sub_1",
+                "checkoutSession": "checkout_1",
+                "externalReference": "order",
+                "dueDate": "2026-10-01",
+                "confirmedDate": "2026-10-01",
+                "billingType": "CREDIT_CARD",
+            },
+            "/v3/customers/cus_1": {
+                "id": "cus_1",
+                "cpfCnpj": "529.982.247-25",
+                "email": "buyer@example.com",
+            },
+            "/v3/subscriptions/sub_1": {
+                "id": "sub_1",
+                "cycle": "MONTHLY",
+                "nextDueDate": "2026-11-01",
+            },
+        }[request.url.path]
+        return httpx.Response(200, json=data)
+
+    gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
+    payment = await gateway.fetch_payment("pay_1")
+    assert payment.customer_cpf == "52998224725"
+    assert payment.customer_email == "buyer@example.com"
+    assert payment.checkout_id == "checkout_1"
+    assert payment.confirmed_at is None  # A calendar date is not a precise confirmation instant.
+    assert payment.period_starts_at.isoformat() == "2026-10-01T00:00:00-03:00"
+    assert payment.period_ends_at.isoformat() == "2026-11-01T00:00:00-03:00"
+    assert len(paths) == 3
+    get_settings.cache_clear()
+
+
+async def test_missing_verified_next_due_date_does_not_invent_subscription_end(monkeypatch):
+    from app.core.config import get_settings
+    from app.integrations.payments.asaas import AsaasGateway
+
+    monkeypatch.setenv("ASAAS_EVENT_TIMEZONE", "America/Sao_Paulo")
+    get_settings.cache_clear()
+
+    def respond(request):
+        data = {
+            "/v3/payments/pay_1": {
+                "id": "pay_1",
+                "status": "CONFIRMED",
+                "value": 49,
+                "customer": "cus_1",
+                "subscription": "sub_1",
+                "dueDate": "2026-10-01",
+            },
+            "/v3/customers/cus_1": {
+                "id": "cus_1",
+                "cpfCnpj": "52998224725",
+                "email": "buyer@example.com",
+            },
+            "/v3/subscriptions/sub_1": {"id": "sub_1", "cycle": "MONTHLY"},
+        }[request.url.path]
+        return httpx.Response(200, json=data)
+
+    gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
+    payment = await gateway.fetch_payment("pay_1")
+    assert payment.period_ends_at is None
+    get_settings.cache_clear()

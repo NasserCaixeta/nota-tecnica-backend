@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     payments_callback_base_url: str = Field(default="", alias="PAYMENTS_CALLBACK_BASE_URL")
     asaas_api_key: SecretStr = Field(default=SecretStr(""), alias="ASAAS_API_KEY")
 
+    asaas_webhook_token: SecretStr = Field(default=SecretStr(""), alias="ASAAS_WEBHOOK_TOKEN")
+    asaas_event_timezone: str = Field(default="", alias="ASAAS_EVENT_TIMEZONE")
+
     r2_account_id: str = Field(default="", alias="R2_ACCOUNT_ID")
     r2_access_key_id: str = Field(default="", alias="R2_ACCESS_KEY_ID")
     r2_secret_access_key: str = Field(default="", alias="R2_SECRET_ACCESS_KEY")

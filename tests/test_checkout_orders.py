@@ -148,3 +148,25 @@ async def test_checkout_creation_cannot_expand_garage(client, db_session, checko
         ).status_code
         == 422
     )
+
+
+async def test_checkout_response_cannot_overwrite_a_financial_confirmation(
+    client, db_session, checkout_gateway
+):
+    from app.modules.payments.gateway import CheckoutSession
+    from app.modules.payments.models import PaymentOrder
+
+    async def confirm_before_returning(snapshot):
+        order = await db_session.get(PaymentOrder, snapshot.id)
+        order.state = "paid"
+        await db_session.commit()
+        return CheckoutSession(
+            "checkout_1", "https://sandbox.asaas.com/checkoutSession/show?id=checkout_1"
+        )
+
+    checkout_gateway.create_checkout = confirm_before_returning
+    response = client.post(
+        "/api/v1/payments/subscription-checkouts", headers=auth_headers(client), json={}
+    )
+    assert response.status_code == 201
+    assert response.json()["state"] == "paid"
