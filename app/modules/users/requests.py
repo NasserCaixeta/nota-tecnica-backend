@@ -6,7 +6,6 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.modules.audit.service import append_audit
 
 
 class AccountRequest(Base):
@@ -50,6 +49,8 @@ class AccountRequestRead(BaseModel):
 
 
 async def create_account_request(session, user, kind, reason):
+    from app.modules.audit.service import append_audit
+
     await session.refresh(user, with_for_update=True)
     existing = await session.scalar(
         select(AccountRequest).where(
