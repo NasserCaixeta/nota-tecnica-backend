@@ -82,8 +82,7 @@ async def put_service_review(session, record_id, payload, actor):
         review.revision_id = revision.id
         review.stars = payload.stars
         review.comment = payload.comment
-        review.comment_hidden = False
-        review.moderation_reason = None
+        # Editing a rating cannot reverse a moderator's decision about its public text.
         review.review_version += 1
     await session.flush()
     await append_audit(

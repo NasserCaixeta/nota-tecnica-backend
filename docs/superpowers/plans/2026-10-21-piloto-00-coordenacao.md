@@ -81,7 +81,7 @@ Tipos de contrato são definidos nas tarefas donas. Consumidores importam esses 
 - [x] P01 concluído e verificado: backend 133 testes, frontend 25 testes, lint/format/build aprovados; PostgreSQL inclui migração e concorrência.
 - [x] P02 concluído e verificado: backend 158 testes, frontend 28 testes, lint/format/build aprovados; documentos privados e análise por versão.
 - [x] P03 concluído e verificado: revisão independente e correções cobertas; suite conjunta com P04-T1: 208 backend/PostgreSQL e 42 frontend, lint/format/build aprovados. Registro: [execução e revisão](../reviews/2026-10-26-piloto-p03.md).
-- [ ] P04 concluído e verificado.
+- [x] P04 concluído e verificado: 225 backend/PostgreSQL, 48 frontend, lint/format/build aprovados; revisão independente e regressão de moderação corrigida. Registro: [execução e revisão](../reviews/2026-10-27-piloto-p04.md).
 - [ ] P05 concluído e verificado, incluindo homologação com provedor de testes.
 - [ ] P06 concluído e piloto pronto para decisão de disponibilização.
 

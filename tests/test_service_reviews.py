@@ -99,3 +99,41 @@ async def test_admin_can_moderate_comment_without_changing_customer_stars(client
     assert response.status_code == 200
     assert response.json()["stars"] == 4
     assert response.json()["comment_hidden"] is True
+
+
+@pytest.mark.parametrize("comment", ["Private contact", "Reworded private contact"])
+async def test_editing_review_does_not_undo_comment_moderation(client, db_session, comment):
+    from app.modules.ranking.models import ServiceReview
+
+    h, _, record, _, admin, _ = await approve_customer_service(client, db_session)
+    url = f"/api/v1/maintenance-records/{record['id']}/review"
+    saved = client.put(
+        url,
+        headers=h,
+        json={
+            "revision_id": record["current_revision_id"],
+            "stars": 4,
+            "comment": "Private contact",
+        },
+    ).json()
+    hidden = client.patch(
+        f"/api/v1/admin/service-reviews/{saved['id']}",
+        headers=admin,
+        json={"expected_version": 1, "comment_hidden": True, "reason": "Personal data"},
+    )
+    assert hidden.status_code == 200
+    edited = client.put(
+        url,
+        headers=h,
+        json={
+            "revision_id": record["current_revision_id"],
+            "expected_version": 2,
+            "stars": 3,
+            "comment": comment,
+        },
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["stars"] == 3
+    assert edited.json()["comment_hidden"] is True
+    review = await db_session.get(ServiceReview, saved["id"])
+    assert review.moderation_reason == "Personal data"
