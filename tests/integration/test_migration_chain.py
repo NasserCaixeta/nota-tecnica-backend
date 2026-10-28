@@ -75,3 +75,72 @@ async def test_full_migration_chain_preserves_legacy_data_and_matches_models(
                 assert revision.admin_status == "pending" and revision.editorial_status == "draft"
     finally:
         get_settings.cache_clear()
+
+
+async def test_mid_migration_failure_rolls_back_schema_revision_and_existing_data(
+    pg_url, pg_engine, monkeypatch
+):
+    from alembic.operations import Operations
+
+    monkeypatch.setenv("DATABASE_URL", pg_url)
+    get_settings.cache_clear()
+    config = Config("alembic.ini")
+    try:
+        await asyncio.to_thread(command.upgrade, config, "20261021_0016")
+        async with pg_engine.begin() as conn:
+            data = user_payload()
+            data.pop("password")
+            data.update(
+                password_hash="synthetic-unused",
+                cpf="52998224725",
+                birth_date=date(1990, 1, 20),
+                profile_type="CUSTOMER",
+            )
+            user_id = await insert_legacy_row(conn, "users", data)
+        original = Operations.add_column
+
+        def add_then_fail(operations, table_name, column, *args, **kwargs):
+            result = original(operations, table_name, column, *args, **kwargs)
+            if table_name == "users" and column.name == "auth_version":
+                raise RuntimeError("synthetic failure after real migration DDL")
+            return result
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Operations, "add_column", add_then_fail)
+            with pytest.raises(RuntimeError, match="after real migration DDL"):
+                await asyncio.to_thread(command.upgrade, config, "head")
+        async with pg_engine.connect() as conn:
+            assert (
+                await conn.scalar(text("SELECT version_num FROM alembic_version"))
+                == "20261021_0016"
+            )
+            assert (
+                await conn.scalar(text("SELECT count(*) FROM users WHERE id=:id"), {"id": user_id})
+                == 1
+            )
+            assert (
+                await conn.scalar(
+                    text("""SELECT count(*) FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='users'
+                  AND column_name='auth_version'""")
+                )
+                == 0
+            )
+            assert (
+                await conn.scalar(text("SELECT to_regclass('public.password_recoveries')")) is None
+            )
+        await asyncio.to_thread(command.upgrade, config, "head")
+        async with pg_engine.connect() as conn:
+            assert (
+                await conn.scalar(text("SELECT version_num FROM alembic_version"))
+                == "20261021_0017"
+            )
+            assert (
+                await conn.scalar(
+                    text("SELECT auth_version FROM users WHERE id=:id"), {"id": user_id}
+                )
+                == 1
+            )
+        await asyncio.to_thread(command.check, config)
+    finally:
+        get_settings.cache_clear()
