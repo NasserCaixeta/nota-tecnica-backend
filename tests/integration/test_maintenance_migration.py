@@ -7,7 +7,8 @@ from sqlalchemy import text
 from alembic import command
 from app.core.config import get_settings
 from app.modules.maintenance.publication import published_maintenance_select
-from app.modules.users.models import User, UserProfileType
+from app.modules.users.models import UserProfileType
+from tests.integration.legacy_fixtures import insert_legacy_row
 from tests.test_auth_users import user_payload
 
 
@@ -28,7 +29,7 @@ async def test_legacy_completed_record_becomes_private_pending_revision(
                 birth_date=date(1990, 1, 20),
                 profile_type=UserProfileType.CUSTOMER,
             )
-            await conn.execute(User.__table__.insert().values(**data))
+            await insert_legacy_row(conn, "users", data)
             await conn.execute(
                 text("""INSERT INTO vehicles
                 (id,plate,brand,model,model_year,color,vehicle_type,chassis,renavam,fuel_type,

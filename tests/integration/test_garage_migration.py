@@ -6,10 +6,11 @@ from sqlalchemy import text
 
 from alembic import command
 from app.core.config import get_settings
-from app.modules.users.models import User, UserProfileType
+from app.modules.users.models import UserProfileType
 from app.modules.vehicles.models import (
     Vehicle,
 )
+from tests.integration.legacy_fixtures import insert_legacy_row
 from tests.test_auth_users import user_payload
 from tests.test_vehicles import vehicle_payload
 
@@ -33,7 +34,7 @@ async def test_garage_migration_preserves_links_with_only_one_free_vehicle(
             profile_type=UserProfileType.CUSTOMER,
         )
         async with pg_engine.begin() as conn:
-            await conn.execute(User.__table__.insert().values(**user))
+            await insert_legacy_row(conn, "users", user)
             for index, plate in enumerate(["ABC1D23", "DEF2E34"]):
                 result = await conn.execute(
                     Vehicle.__table__.insert()
