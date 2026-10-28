@@ -1,6 +1,8 @@
 from functools import lru_cache
+from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +36,9 @@ class Settings(BaseSettings):
     invitation_secret_key: str = Field(default="", alias="INVITATION_SECRET_KEY")
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
 
+    payments_environment: Literal["sandbox"] = Field(
+        default="sandbox", alias="PAYMENTS_ENVIRONMENT"
+    )
     payments_enabled: bool = Field(default=False, alias="PAYMENTS_ENABLED")
     payments_history_price_cents: int | None = Field(
         default=None, gt=0, alias="PAYMENTS_HISTORY_PRICE_CENTS"
@@ -91,6 +96,34 @@ class Settings(BaseSettings):
     )
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=60, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+
+    @model_validator(mode="after")
+    def validate_pilot(self):
+        if self.app_env not in {"pilot", "production"}:
+            return self
+        keys = [
+            self.jwt_secret_key,
+            self.invitation_secret_key,
+            self.recovery_secret_key.get_secret_value(),
+        ]
+        if self.debug or any(len(key) < 32 or key.startswith("change-me") for key in keys):
+            raise ValueError(
+                "Pilot requires debug off and three non-default secrets of at least 32 characters"
+            )
+        if len(set(keys)) != len(keys):
+            raise ValueError("Pilot secrets must be distinct")
+        urls = [self.frontend_url, *self.backend_cors_origins]
+        if not self.backend_cors_origins or any(
+            urlsplit(url).scheme != "https"
+            or not urlsplit(url).hostname
+            or urlsplit(url).username
+            or urlsplit(url).password
+            or urlsplit(url).query
+            or urlsplit(url).fragment
+            for url in urls
+        ):
+            raise ValueError("Pilot requires explicit HTTPS frontend and CORS origins")
+        return self
 
 
 @lru_cache

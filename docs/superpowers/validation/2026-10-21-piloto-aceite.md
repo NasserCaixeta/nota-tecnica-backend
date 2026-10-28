@@ -84,3 +84,7 @@ Logs locais sanitizados: `/private/tmp/p06-t3-full.log`, `/private/tmp/p06-ci-ui
 - Executar CI no provedor após publicação autorizada dos commits.
 - Autorizar/configurar ambiente público, bucket privado/CORS, HTTPS, SMTP e responsáveis pela operação.
 - Avaliar retenção final, suporte, preços e passagem ao MVP comercial antes de cobrança real.
+
+## Preparação operacional P06-T4
+
+Backend327/327 com PostgreSQL/Redis e Ruff; dois Docker builds locais concluídos. Smoke de contêiner validou readiness real, SPA profunda, proxy da API, CLI agregado e ausência de .env/.git/testes na imagem API. Compose e ambos workflows passaram validação local (actionlint). Frontend mantém62/62 da T3; T4 altera apenas embalagem/documentação. Logs locais: `/private/tmp/p06-t4-full.log`, `/private/tmp/p06-docker-api.log`, `/private/tmp/p06-docker-ui.log`, `/private/tmp/p06-container-smoke.log`. [Roteiro e proposta de ambiente/custos](2026-10-21-piloto-operacao.md). Nenhum deploy ou envio de e-mail externo ocorreu.

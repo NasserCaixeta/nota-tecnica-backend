@@ -33,3 +33,5 @@ docs/superpowers/reviews/*
 docs/superpowers/validation/*
 !docs/superpowers/validation/2026-10-21-piloto-aceite.md
 !docs/superpowers/validation/2026-10-21-piloto-operacao.md
+.env.*
+!.env.example

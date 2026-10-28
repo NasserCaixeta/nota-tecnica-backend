@@ -1,0 +1,81 @@
+# Private stack: an authorized host TLS proxy must forward to loopback:8088.
+name: nota-tecnica-pilot
+x-runtime: &runtime
+  image: nota-tecnica-api:pilot
+  build: .
+  env_file: .env.pilot
+  environment:
+    APP_ENV: pilot
+    DEBUG: "false"
+    PAYMENTS_ENVIRONMENT: sandbox
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nota_tecnica_pilot
+      POSTGRES_USER: nota_tecnica
+      POSTGRES_PASSWORD: ${PILOT_DB_PASSWORD:?Set PILOT_DB_PASSWORD in the compose env file}
+    volumes: ["pilot_postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nota_tecnica -d nota_tecnica_pilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["pilot_redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  migrate:
+    <<: *runtime
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  api:
+    <<: *runtime
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/ready', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+  worker:
+    <<: *runtime
+    command: ["celery", "-A", "app.integrations.queue.celery_app:celery_app", "worker", "--loglevel=WARNING", "--concurrency=2", "--without-gossip", "--without-mingle"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  beat:
+    <<: *runtime
+    command: ["celery", "-A", "app.integrations.queue.celery_app:celery_app", "beat", "--loglevel=WARNING", "--schedule=/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  frontend:
+    image: nota-tecnica-frontend:pilot
+    build: ../nota-tecnica-frontend
+    environment:
+      PILOT_TRUSTED_PROXY: ${PILOT_TRUSTED_PROXY:-127.0.0.1}
+    ports: ["127.0.0.1:${PILOT_HTTP_PORT:-8088}:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    profiles: ["mail"]
+    ports: ["127.0.0.1:${PILOT_MAIL_UI_PORT:-8028}:8025"]
+    restart: unless-stopped
+volumes:
+  pilot_postgres:
+  pilot_redis:

@@ -83,7 +83,10 @@ modules/
 git clone https://github.com/NasserCaixeta/nota-tecnica-backend.git
 cd nota-tecnica-backend
 cp .env.example .env
-docker compose up --build
+docker compose up -d postgres redis
+uv sync --frozen
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload
 ```
 
 ### Opção 2: Execução local
@@ -108,9 +111,9 @@ http://localhost:8000/docs
 Use `.env.example` como referência. Em geral, configure:
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/nota_tecnica
-SECRET_KEY=sua_chave_secreta
-BACKEND_CORS_ORIGINS=http://localhost:5173
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/nota_tecnica
+JWT_SECRET_KEY=<segredo-aleatorio>
+BACKEND_CORS_ORIGINS=["http://localhost:5173"]
 ```
 
 > Não versionar credenciais reais ou chaves sensíveis.
@@ -128,12 +131,17 @@ uv run alembic upgrade head
 uv run pytest
 ```
 
-## Próximas melhorias sugeridas
+## Piloto
 
-* Documentar exemplos de payloads por módulo.
-* Adicionar diagrama de relacionamento entre usuários, veículos, oficinas e documentos.
-* Criar seed de dados para demonstração.
-* Adicionar CI para testes, lint e migrações.
+O [aceite local](docs/superpowers/validation/2026-10-21-piloto-aceite.md) registra critérios A01–A20, comandos e SHAs dos dois projetos. O [roteiro operacional](docs/superpowers/validation/2026-10-21-piloto-operacao.md) cobre Docker, configuração privada, bootstrap, HTTPS, R2, worker/beat e backup/restauração.
+
+`docker-compose.pilot.yml` prepara uma stack privada e exige `.env.pilot` própria; não é o compose de desenvolvimento. Pagamentos são somente Sandbox, desativados por padrão. Build local não publica imagens nem disponibiliza o piloto. A homologação remota e o deploy exigem configuração/autorização operacional separadas.
+
+```sh
+uv run python -m app.cli.pilot_report --from 2026-10-01 --to 2026-10-31
+```
+
+O relatório contém agregados sem identidades. Readiness: `/api/v1/ready` (Postgres/Redis); liveness: `/health`. CI local e jornadas Playwright estão documentadas no aceite.
 
 ## Autor
 

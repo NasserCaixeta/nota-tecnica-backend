@@ -51,6 +51,7 @@ async def submit_maintenance(session, record_id, payload, user):
         target_type="maintenance_record",
         target_id=record.id,
         version=revision.review_version,
+        metadata={"revision_id": revision.id},
     )
     await session.commit()
     return record
