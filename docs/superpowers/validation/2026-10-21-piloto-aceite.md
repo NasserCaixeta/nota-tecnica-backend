@@ -69,7 +69,14 @@ Restauração executada com sucesso em duas bases novas com nomes exclusivos. O 
 
 ## Resultados e versões
 
-Resultados finais e par de SHAs são registrados após os commits de código e a repetição das jornadas nesse par.
+Par de código validado: backend `1943fa17c8966683cd5fed7d50a4da8d53a68b8b`, frontend `2d1b70ae36b36488ef80bc872b10d0722f7d6eb0`.
+
+- Backend: **321 testes passaram**, incluindo PostgreSQL/Redis e cadeia de migrações; Ruff check/format sem diferenças. Aviso de depreciação upstream do TestClient.
+- Frontend: instalação `npm ci`, lint, **62 testes**, build e audit concluídos; **zero vulnerabilidades** reportadas.
+- Navegador repetido no par commitado: **6/6 passaram em 12,4s**.
+- Backup/restauração e migração de base vazia/legada: passaram conforme procedimento acima.
+
+Logs locais sanitizados: `/private/tmp/p06-t3-full.log`, `/private/tmp/p06-ci-ui.log`, `/private/tmp/p06-e2e-committed.log`, `/private/tmp/p06-backup-restore-safe.log`. São evidência temporária da sessão; o índice, comandos e resultados persistem neste documento.
 
 ## Pendências externas
 
