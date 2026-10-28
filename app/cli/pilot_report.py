@@ -84,13 +84,13 @@ async def build_report(session, start: date, end: date):
         key = (target, revision)
         if action == "maintenance.submit" and revision is not None:
             submissions[key] = when
+        submitted = submissions.pop(key, None) if action == "maintenance.review" else None
         if when < lower:
             continue
         if action in action_keys:
             event_counts[action_keys[action]] += 1
         if action == "maintenance.review":
             rejected += metadata.get("decision") == "rejected"
-            submitted = submissions.pop(key, None)
             if submitted is not None:
                 durations.append((when - submitted).total_seconds() / 3600)
     orders = dict(

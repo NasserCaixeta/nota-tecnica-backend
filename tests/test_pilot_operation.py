@@ -212,6 +212,43 @@ async def test_uvicorn_exception_output_hides_payload_and_traceback(client, capl
     assert "Traceback" not in caplog.text
 
 
+async def test_report_consumes_prior_decision_and_pairs_genuine_resubmission(db_session):
+    from app.cli.pilot_report import build_report
+
+    for action, day in [
+        ("maintenance.submit", 1),
+        ("maintenance.review", 2),
+        ("maintenance.review", 4),
+    ]:
+        db_session.add(
+            AuditEvent(
+                action=action,
+                target_type="maintenance_record",
+                target_id=99,
+                event_metadata={"revision_id": 7, "decision": "approved"},
+                created_at=datetime(2026, 10, day, tzinfo=UTC),
+            )
+        )
+    await db_session.commit()
+    report = await build_report(db_session, date(2026, 10, 3), date(2026, 10, 5))
+    assert report["review"]["samples"] == 0
+    assert report["review"]["mean_hours"] is None
+    for action, hour in [("maintenance.submit", 1), ("maintenance.review", 3)]:
+        db_session.add(
+            AuditEvent(
+                action=action,
+                target_type="maintenance_record",
+                target_id=99,
+                event_metadata={"revision_id": 7, "decision": "approved"},
+                created_at=datetime(2026, 10, 5, hour, tzinfo=UTC),
+            )
+        )
+    await db_session.commit()
+    report = await build_report(db_session, date(2026, 10, 3), date(2026, 10, 5))
+    assert report["review"]["samples"] == 1
+    assert report["review"]["mean_hours"] == 2.0
+
+
 def test_celery_failure_logging_preserves_type_without_exception_value(caplog, monkeypatch):
     import logging
 
