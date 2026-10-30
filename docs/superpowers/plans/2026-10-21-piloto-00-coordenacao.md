@@ -44,7 +44,7 @@
 | 5 | [P05 — pagamentos e assinatura](2026-10-21-piloto-05-pagamentos.md) | Acesso por 30 dias e cinco veículos em testes. | P02–P04. |
 | 6 | [P06 — operação e verificação](2026-10-21-piloto-06-operacao.md) | Notificações, recuperação, CI, homologação e roteiro operacional. | P01–P05. |
 
-Sequência nativa recomendada. Não há necessidade de agentes paralelos para executar os contratos interdependentes. O plano de pagamentos propõe Asaas Sandbox, isolado por adaptador; sua homologação remota depende de conta e credenciais de testes, não necessárias às entregas 1–4.
+Sequência nativa recomendada. Não há necessidade de agentes paralelos para executar os contratos interdependentes. Em30/10 o usuário escolheu Stripe; a substituição local está concluída e sua homologação remota depende das credenciais de testes, não necessárias às entregas 1–4.
 
 ## Contratos compartilhados
 
@@ -83,6 +83,7 @@ Tipos de contrato são definidos nas tarefas donas. Consumidores importam esses 
 - [x] P03 concluído e verificado: revisão independente e correções cobertas; suite conjunta com P04-T1: 208 backend/PostgreSQL e 42 frontend, lint/format/build aprovados. Registro: [execução e revisão](../reviews/2026-10-26-piloto-p03.md).
 - [x] P04 concluído e verificado: 225 backend/PostgreSQL, 48 frontend, lint/format/build aprovados; revisão independente e regressão de moderação corrigida. Registro: [execução e revisão](../reviews/2026-10-27-piloto-p04.md).
 - [x] P05 implementado e verificado localmente: 292 testes backend / 58 frontend; [revisão e decisões](../reviews/2026-10-27-piloto-p05.md).
+- [x] Substituição local Asaas→Stripe:350 backend,69 frontend e seis jornadas; [revisão final](../reviews/2026-10-30-stripe.md).
 - [ ] Pagamentos homologados remotamente: em30/10 o usuário escolheu substituir Asaas por Stripe. [Plano da substituição](2026-10-30-stripe.md); credenciais e eventos de teste devem ser verificados no Stripe.
 - [x] P06 implementado e verificado localmente: 331 backend/PostgreSQL/Redis, 62 frontend, seis jornadas e Docker smoke; revisão independente e três Important resolvidos. [Registro e menor adiado](../reviews/2026-10-28-piloto-p06.md).
 - [ ] Piloto disponibilizado: depende de autorização e validação do ambiente/integrações conforme [roteiro operacional](../validation/2026-10-21-piloto-operacao.md).
