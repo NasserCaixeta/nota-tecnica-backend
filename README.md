@@ -154,9 +154,9 @@ Desenvolvido por [Nasser Caixeta](https://github.com/NasserCaixeta).
 `docker-compose.vps.yml` é a alternativa backend-only ao Compose do piloto completo. Usa projeto, banco, Redis e volumes próprios e publica somente a API em `127.0.0.1:18001`; o Nginx do host termina HTTPS. Não executar os dois Composes para o mesmo ambiente. Configure `.env.vps` privado com `NOTA_TECNICA_RELEASE=<commit>`, `PILOT_DB_PASSWORD`, `DATABASE_URL` do serviço `postgres`, `REDIS_URL=redis://redis:6379/0`, três segredos distintos e origens HTTPS exatas. A configuração força pagamentos desativados; não copiar a chave Stripe live local.
 
 ```sh
-docker compose --env-file .env.vps -f docker-compose.vps.yml config -q
-docker compose --env-file .env.vps -f docker-compose.vps.yml build api
-docker compose --env-file .env.vps -f docker-compose.vps.yml up -d
+sh deploy/vps-release.sh /opt/nota-tecnica/releases/<commit>
 ```
+
+O script interrompe na falha de configuração/build/migração, mantendo API/worker/beat antigos durante a migração. Depois do sucesso, substitui os serviços e espera a saúde da API. As migrações precisam ser compatíveis com a versão ainda ativa. A troca dos containers tem breve indisponibilidade; não há promessa de zero downtime. Só atualizar o symlink `current` depois do sucesso. Não executar `up -d` de toda a stack como procedimento de atualização: ele pode remover a API anterior antes da migração terminar.
 
 Modelo do novo vhost em `deploy/nginx-api.conf.example`. Obter certificado para o hostname próprio antes de habilitar o bloco443, validar `nginx -t` e usar reload. O proxy sobrescreve XFF; nunca publicar a porta da API em todas as interfaces. Frontend Vercel deve compilar com `VITE_API_BASE_URL=https://<host-api>/api/v1` e fallback SPA. R2, SMTP, pagamentos, administrador inicial e backup externo precisam de configuração própria antes de anunciar as respectivas jornadas disponíveis.
