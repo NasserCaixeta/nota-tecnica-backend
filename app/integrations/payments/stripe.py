@@ -118,7 +118,9 @@ class StripeGateway:
                 "email": order.buyer_email,
                 "metadata[user_id]": str(order.buyer_id),
             },
-            key="nt:customer:" + str(order.buyer_id),
+            # Align customer and Checkout retention windows. An older user-wide
+            # key may expire while this order's uncertain Checkout is retried.
+            key="nt:customer:" + order.id,
         )
         recurring = order.product == "garage_monthly"
         prefix = "subscription_data" if recurring else "payment_intent_data"

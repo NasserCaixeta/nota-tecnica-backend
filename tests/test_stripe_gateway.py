@@ -263,3 +263,43 @@ async def test_cancel_subscription_disables_renewal_without_deleting_paid_period
     assert result is True
     assert [r.method for r in requests] == ["GET", "POST"]
     assert parse_qs(requests[-1].content.decode())["cancel_at_period_end"] == ["true"]
+
+
+async def test_uncertain_checkout_recovers_when_older_customer_key_expires():
+    from app.integrations.payments.stripe import StripeGateway
+
+    customers = {"nt:customer:1": "cus_old"}
+    original_body = None
+    retry = False
+
+    def respond(request):
+        nonlocal original_body
+        if request.url.path.endswith("/customers"):
+            key = request.headers["Idempotency-Key"]
+            # The user's older key expires between attempts, while this order's
+            # keys remain inside their own retention window.
+            if retry:
+                customers.pop("nt:customer:1", None)
+            identity = customers.setdefault(key, "cus_new" if retry else "cus_order")
+            return httpx.Response(200, json={**customer(), "id": identity})
+        if original_body is None:
+            original_body = request.content
+            return httpx.Response(500)
+        if request.content != original_body:
+            return httpx.Response(400, json={"error": {"type": "idempotency_error"}})
+        return httpx.Response(
+            200,
+            json={
+                "id": "cs_test_recovered",
+                "livemode": False,
+                "url": "https://checkout.stripe.com/c/pay/cs_test_recovered",
+                "client_reference_id": "order-one",
+            },
+        )
+
+    gateway = StripeGateway(api_key="sk_test_private", transport=httpx.MockTransport(respond))
+    with pytest.raises(GatewayUncertainOutcome):
+        await gateway.create_checkout(order())
+    retry = True
+    recovered = await gateway.reconcile_checkout(order())
+    assert recovered.provider_id == "cs_test_recovered"
