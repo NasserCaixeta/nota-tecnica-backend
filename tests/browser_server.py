@@ -35,8 +35,8 @@ for key, value in {
     "PAYMENTS_HISTORY_PRICE_CENTS": "1900",
     "PAYMENTS_SUBSCRIPTION_PRICE_CENTS": "4900",
     "PAYMENTS_CALLBACK_BASE_URL": "https://e2e.invalid",
-    "ASAAS_API_KEY": "browser-fixture-only",
-    "ASAAS_WEBHOOK_TOKEN": "browser-fixture-only-webhook-token-at-least-32-characters",
+    "STRIPE_SECRET_KEY": "sk_test_browser_fixture_only",
+    "STRIPE_WEBHOOK_SECRET": "whsec_browser-fixture-only-webhook-secret-at-least-32-characters",
     "SMTP_ENABLED": "false",
     "REGISTER_RATE_LIMIT": "1000",
     "LOGIN_IP_RATE_LIMIT": "1000",
@@ -147,7 +147,7 @@ class FixtureGateway:
     async def create_checkout(self, order):
         return CheckoutSession(
             "checkout-" + order.id,
-            "https://sandbox.asaas.com/checkoutSession/show?id=fixture-" + order.id,
+            "https://checkout.stripe.com/c/pay/cs_test_fixture_" + order.id,
         )
 
     async def reconcile_checkout(self, order):
@@ -157,7 +157,7 @@ class FixtureGateway:
         return True
 
     async def fetch_payment(self, provider_payment_id):
-        order_id = provider_payment_id.removeprefix("pay-")
+        order_id = provider_payment_id.removeprefix("pi_fixture_").removeprefix("in_fixture_")
         async with get_async_session_factory()() as session:
             order = await session.get(PaymentOrder, order_id)
             if order is None:
@@ -177,7 +177,7 @@ class FixtureGateway:
                 amount_cents=order.amount_cents,
                 currency="BRL",
                 customer_id="fixture-payer",
-                customer_cpf=buyer.cpf,
+                customer_user_reference=str(buyer.id),
                 customer_email=buyer.email,
                 checkout_id="checkout-" + order.id,
                 confirmed_at=order.created_at,

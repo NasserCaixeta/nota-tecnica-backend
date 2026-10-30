@@ -83,7 +83,7 @@ Tipos de contrato são definidos nas tarefas donas. Consumidores importam esses 
 - [x] P03 concluído e verificado: revisão independente e correções cobertas; suite conjunta com P04-T1: 208 backend/PostgreSQL e 42 frontend, lint/format/build aprovados. Registro: [execução e revisão](../reviews/2026-10-26-piloto-p03.md).
 - [x] P04 concluído e verificado: 225 backend/PostgreSQL, 48 frontend, lint/format/build aprovados; revisão independente e regressão de moderação corrigida. Registro: [execução e revisão](../reviews/2026-10-27-piloto-p04.md).
 - [x] P05 implementado e verificado localmente: 292 testes backend / 58 frontend; [revisão e decisões](../reviews/2026-10-27-piloto-p05.md).
-- [ ] P05 homologado remotamente com provedor de testes: pendente de credenciais Sandbox e URL HTTPS autorizada.
+- [ ] Pagamentos homologados remotamente: em30/10 o usuário escolheu substituir Asaas por Stripe. [Plano da substituição](2026-10-30-stripe.md); credenciais e eventos de teste devem ser verificados no Stripe.
 - [x] P06 implementado e verificado localmente: 331 backend/PostgreSQL/Redis, 62 frontend, seis jornadas e Docker smoke; revisão independente e três Important resolvidos. [Registro e menor adiado](../reviews/2026-10-28-piloto-p06.md).
 - [ ] Piloto disponibilizado: depende de autorização e validação do ambiente/integrações conforme [roteiro operacional](../validation/2026-10-21-piloto-operacao.md).
 

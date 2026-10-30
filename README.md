@@ -135,7 +135,9 @@ uv run pytest
 
 O [aceite local](docs/superpowers/validation/2026-10-21-piloto-aceite.md) registra critérios A01–A20, comandos e SHAs dos dois projetos. O [roteiro operacional](docs/superpowers/validation/2026-10-21-piloto-operacao.md) cobre Docker, configuração privada, bootstrap, HTTPS, R2, worker/beat e backup/restauração.
 
-`docker-compose.pilot.yml` prepara uma stack privada e exige `.env.pilot` própria; não é o compose de desenvolvimento. Pagamentos são somente Sandbox, desativados por padrão. Build local não publica imagens nem disponibiliza o piloto. A homologação remota e o deploy exigem configuração/autorização operacional separadas.
+`docker-compose.pilot.yml` prepara uma stack privada e exige `.env.pilot` própria; não é o compose de desenvolvimento. Pagamentos usam Stripe Checkout exclusivamente em testes, desativados por padrão. Build local não publica imagens nem disponibiliza o piloto. O Asaas foi substituído; não é necessário concluir seu cadastro. A homologação Stripe e o deploy exigem configuração própria.
+
+Configure `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` em arquivo privado. O segredo do webhook vem do Stripe, não é uma senha escolhida. Para desenvolvimento local, `stripe listen --forward-to localhost:8000/api/v1/payments/webhooks/stripe` encaminha eventos sem túnel público. Veja o [roteiro Stripe](docs/superpowers/validation/2026-10-30-stripe.md).
 
 ```sh
 uv run python -m app.cli.pilot_report --from 2026-10-01 --to 2026-10-31

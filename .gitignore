@@ -42,3 +42,5 @@ docs/superpowers/validation/*
 .playwright-mcp/
 !docs/superpowers/specs/2026-10-30-stripe-design.md
 !docs/superpowers/plans/2026-10-30-stripe.md
+!docs/superpowers/validation/2026-10-30-stripe.md
+!docs/superpowers/reviews/2026-10-30-stripe.md

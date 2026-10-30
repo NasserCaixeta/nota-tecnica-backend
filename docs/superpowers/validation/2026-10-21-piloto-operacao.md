@@ -1,3 +1,5 @@
+> Atualizado em30/10/2026: provedor substituído por Stripe. [Configuração e evidências atuais](2026-10-30-stripe.md). Relatórios P05/P06 anteriores preservam o histórico da implementação.
+
 # Operação proposta do piloto — 28/10/2026
 
 Pacote local preparado para revisão; nenhum recurso remoto foi contratado, publicado ou configurado nesta execução. Pagamentos continuam exclusivamente Sandbox e desligados por padrão. [Aceite e par de commits](2026-10-21-piloto-aceite.md).
@@ -21,7 +23,7 @@ Preencher, antes de inicializar:
 - `APP_ENV=pilot`, `DEBUG=false`; `JWT_SECRET_KEY`, `INVITATION_SECRET_KEY`, `RECOVERY_SECRET_KEY` com três valores aleatórios distintos de pelo menos32 caracteres. Gerar cada um em gerenciador de segredos ou `openssl rand -hex 32`; não colar em tickets.
 - `PILOT_DB_PASSWORD` aleatória e `DATABASE_URL=postgresql+asyncpg://nota_tecnica:<senha-url-encoded>@postgres:5432/nota_tecnica_pilot`. O valor codificado deve corresponder à senha literal do Postgres. `REDIS_URL=redis://redis:6379/0`.
 - `FRONTEND_URL=https://<dominio-piloto>`, `BACKEND_CORS_ORIGINS=["https://<dominio-piloto>"]`.
-- `PAYMENTS_ENABLED=false`, `PAYMENTS_ENVIRONMENT=sandbox`. Não incluir chave de produção. Para homologação autorizada: preços explícitos, API key de Sandbox, webhook token separado>=32, callback HTTPS e timezone confirmado pelo provedor. Só ativar após roteiro P05; retorno de checkout nunca concede benefício.
+- `PAYMENTS_ENABLED=false`, `PAYMENTS_ENVIRONMENT=sandbox`. Não incluir chave de produção. Para homologação autorizada: preços explícitos, chave secreta de teste, STRIPE_WEBHOOK_SECRET fornecido pelo endpoint Stripe e callback HTTPS. Só ativar após roteiro P05; retorno de checkout nunca concede benefício.
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_ENDPOINT_URL` com credencial limitada ao bucket privado do piloto.
 - `SMTP_ENABLED=false`, `SMTP_CAPTURE_ONLY=true` no primeiro boot. Para capturador autorizado local: `SMTP_ENABLED=true`, `SMTP_HOST=mailpit`, `SMTP_PORT=1025`, profile `mail`. A UI Mailpit fica apenas no loopback, acessível por túnel administrativo. SMTP externo exige credenciais, remetente e autorização próprios; nesse momento usar TLS, `SMTP_CAPTURE_ONLY=false` e repetir teste com destinatário autorizado.
 
@@ -77,7 +79,7 @@ URLs assinadas usadas no navegador também exigem CORS, conforme a [documentaç�
 
 ## Saúde, fila e acompanhamento
 
-`GET /health` é liveness sem I/O; `/api/v1/ready` verifica Postgres e Redis, com timeout e503 neutro. Readiness não comprova R2, SMTP ou Asaas. Verificar esses adaptadores por jornada autorizada; não bloquear liveness por serviço externo.
+`GET /health` é liveness sem I/O; `/api/v1/ready` verifica Postgres e Redis, com timeout e503 neutro. Readiness não comprova R2, SMTP ou Stripe. Verificar esses adaptadores por jornada autorizada; não bloquear liveness por serviço externo.
 
 API/worker usam a mesma imagem/configuração; beat dispara recuperação de notificações e pagamentos a cada60s. Outbox permanece no banco se broker/SMTP falha; não repetir aprovação nem criar nova compra para resolver fila atrasada. Acompanhar `notification_deliveries` pendentes/failed, `payment_events` e `checkout_events` pendentes, pedidos `reconciliation_required` e cancelamentos. Não copiar payloads para monitoramento. Celery registra WARNING; API e proxy sem accesslog e erro de aplicação só informa classe, sem traceback com parâmetros SQL. Logs locais rotacionam10MBx3 por processo configurado; destino/alertas remotos ainda dependem de operação.
 
@@ -127,4 +129,4 @@ O teste local `tests.integration.backup_roundtrip` já comprovou roundtrip de da
 
 Builds backend/frontend concluídos. Smoke temporário validou imagem API sem debug, readiness com PostgreSQL/Redis reais, rota SPA profunda, proxy HTTP da API e CLI agregado. Contextos Docker são allowlists, sem .env/.git/testes; imagem API foi inspecionada para confirmar ausência desses caminhos. Recursos temporários foram removidos; nenhuma imagem foi publicada. Resultados completos e revisão ficam no aceite e relatório P06.
 
-Pendentes externos: domínio/conta/servidor e autorização de publicação; R2 privado/CORS real; SMTP/backup externo; teste de confiança do proxy no host escolhido; build x86; homologação financeira Sandbox e período/cancelamento; definição de retenção, suporte, preços e critérios do MVP comercial. Não ativar cobrança real como parte do piloto.
+Pendentes externos: domínio/conta/servidor e autorização de publicação; R2 privado/CORS real; SMTP/backup externo; teste de confiança do proxy no host escolhido; build x86; homologação financeira Stripe de testes e período/cancelamento; definição de retenção, suporte, preços e critérios do MVP comercial. Não ativar cobrança real como parte do piloto.
