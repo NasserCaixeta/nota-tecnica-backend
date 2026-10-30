@@ -44,3 +44,8 @@ docs/superpowers/validation/*
 !docs/superpowers/plans/2026-10-30-stripe.md
 !docs/superpowers/validation/2026-10-30-stripe.md
 !docs/superpowers/reviews/2026-10-30-stripe.md
+
+# Vercel + existing VPS deployment evidence
+!docs/superpowers/specs/2026-10-30-vercel-vps-design.md
+!docs/superpowers/plans/2026-10-30-vercel-vps.md
+!docs/superpowers/validation/2026-10-30-vercel-vps.md
