@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
-from app.integrations.payments.asaas import AsaasGateway
+from app.integrations.payments.stripe import StripeGateway
 from app.integrations.queue.celery_app import celery_app
 from app.modules.payments.cancellations import pending_cancellation_ids, reconcile_cancellation
 from app.modules.payments.checkout_events import pending_checkout_event_ids, process_checkout_event
@@ -13,9 +13,9 @@ from app.modules.payments.events import pending_payment_event_ids, process_payme
 
 async def process(event_id: int | str, *, cancellation=False, checkout=False):
     settings = get_settings()
-    if not settings.payments_enabled or not settings.asaas_api_key.get_secret_value():
+    if not settings.payments_enabled or not settings.stripe_secret_key.get_secret_value():
         return
-    gateway = AsaasGateway(api_key=settings.asaas_api_key.get_secret_value())
+    gateway = StripeGateway(api_key=settings.stripe_secret_key.get_secret_value())
     # Each Celery invocation owns its asyncio loop; do not reuse a pooled engine
     # from another asyncio.run invocation in the same worker process.
     engine = create_async_engine(settings.database_url)

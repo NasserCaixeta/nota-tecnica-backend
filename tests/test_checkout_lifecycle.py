@@ -10,7 +10,7 @@ from tests.test_payment_benefits import add_event, prepare_payment
 
 async def lifecycle_event(session, kind):
     event = CheckoutEvent(
-        provider="asaas",
+        provider="stripe",
         environment="sandbox",
         event_id=kind,
         event_type=kind,

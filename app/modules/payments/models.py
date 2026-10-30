@@ -30,6 +30,7 @@ class PaymentOrder(Base):
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     buyer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(20), default="stripe")
     product: Mapped[str] = mapped_column(String(32))
     vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.id"), nullable=True)
     amount_cents: Mapped[int] = mapped_column()
@@ -60,7 +61,7 @@ class PaymentEvent(Base):
         UniqueConstraint("provider", "environment", "event_id", name="uq_payment_event"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
-    provider: Mapped[str] = mapped_column(String(20), default="asaas")
+    provider: Mapped[str] = mapped_column(String(20), default="stripe")
     environment: Mapped[str] = mapped_column(String(16), default="sandbox")
     event_id: Mapped[str] = mapped_column(String(200))
     event_type: Mapped[str] = mapped_column(String(80))
@@ -135,7 +136,7 @@ class CheckoutEvent(Base):
         UniqueConstraint("provider", "environment", "event_id", name="uq_checkout_event"),
     )
     id: Mapped[int] = mapped_column(primary_key=True)
-    provider: Mapped[str] = mapped_column(String(20), default="asaas")
+    provider: Mapped[str] = mapped_column(String(20), default="stripe")
     environment: Mapped[str] = mapped_column(String(16), default="sandbox")
     event_id: Mapped[str] = mapped_column(String(200))
     event_type: Mapped[str] = mapped_column(String(80))

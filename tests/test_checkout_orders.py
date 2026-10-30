@@ -18,7 +18,7 @@ class CheckoutGateway:
         if self.uncertain:
             raise GatewayUncertainOutcome()
         return CheckoutSession(
-            "checkout-test-id", "https://sandbox.asaas.com/checkoutSession/show?id=checkout-test-id"
+            "checkout-test-id", "https://checkout.stripe.com/c/pay/cs_test_checkout-test-id"
         )
 
     async def reconcile_checkout(self, order):
@@ -26,7 +26,7 @@ class CheckoutGateway:
 
         self.reconciled.append(order.id)
         return CheckoutSession(
-            "checkout-test-id", "https://sandbox.asaas.com/checkoutSession/show?id=checkout-test-id"
+            "checkout-test-id", "https://checkout.stripe.com/c/pay/cs_test_checkout-test-id"
         )
 
 
@@ -35,8 +35,10 @@ def checkout_gateway(client, monkeypatch):
     from app.modules.payments.router import get_payment_gateway
 
     monkeypatch.setenv("PAYMENTS_ENABLED", "true")
-    monkeypatch.setenv("ASAAS_API_KEY", "sandbox-test-key")
-    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", "separate-webhook-secret-at-least-32-characters")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_synthetic")
+    monkeypatch.setenv(
+        "STRIPE_WEBHOOK_SECRET", "whsec_separate-webhook-secret-at-least-32-characters"
+    )
     monkeypatch.setenv("PAYMENTS_HISTORY_PRICE_CENTS", "1900")
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
@@ -163,9 +165,7 @@ async def test_checkout_response_cannot_overwrite_a_financial_confirmation(
         order = await db_session.get(PaymentOrder, snapshot.id)
         order.state = "paid"
         await db_session.commit()
-        return CheckoutSession(
-            "checkout_1", "https://sandbox.asaas.com/checkoutSession/show?id=checkout_1"
-        )
+        return CheckoutSession("checkout_1", "https://checkout.stripe.com/c/pay/cs_test_checkout_1")
 
     checkout_gateway.create_checkout = confirm_before_returning
     response = client.post(
@@ -237,12 +237,12 @@ async def test_suspended_admin_cannot_read_another_buyers_order(
     assert client.get(url, headers=owner_headers).status_code == 200
 
 
-@pytest.mark.parametrize("webhook_token", ["", "sandbox-test-key"])
+@pytest.mark.parametrize("webhook_token", ["", "sk_test_synthetic"])
 def test_checkout_unavailable_when_webhook_cannot_authenticate(
     client, checkout_gateway, monkeypatch, webhook_token
 ):
-    monkeypatch.setenv("ASAAS_API_KEY", "sandbox-test-key")
-    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", webhook_token)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_synthetic")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", webhook_token)
     get_settings.cache_clear()
     headers = auth_headers(client)
     assert client.get("/api/v1/payments/config").json()["enabled"] is False

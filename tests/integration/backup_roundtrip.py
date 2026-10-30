@@ -115,11 +115,11 @@ async def main():
         for table in ("users", "documents", "audit_events"):
             assert await conn.scalar(text(f"SELECT count(*) FROM {table}")) == 1
         assert await conn.scalar(text("SELECT auth_version FROM users")) == 1
-        assert await conn.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_0017"
+        assert await conn.scalar(text("SELECT version_num FROM alembic_version")) == "20261030_0018"
     await source.dispose()
     await target.dispose()
     print(
-        "Backup restored: head0017, synthetic user/document/audit preserved; "
+        "Backup restored: head0018, synthetic user/document/audit preserved; "
         "external storage excluded."
     )
 

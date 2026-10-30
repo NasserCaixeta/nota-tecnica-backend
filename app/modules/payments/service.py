@@ -27,9 +27,7 @@ def checkout_config(product: PaymentProduct):
     from app.modules.payments.configuration import webhook_configuration_ready
 
     if not webhook_configuration_ready(settings):
-        raise HTTPException(
-            503, "Sandbox webhooks require a separate token of at least 32 characters"
-        )
+        raise HTTPException(503, "Stripe test webhook requires its separate signing secret")
     price = (
         settings.payments_history_price_cents
         if product == PaymentProduct.HISTORY_ACCESS
@@ -40,7 +38,14 @@ def checkout_config(product: PaymentProduct):
     if (
         not settings.payments_enabled
         or price is None
-        or parsed.scheme != "https"
+        or not (
+            parsed.scheme == "https"
+            or (
+                parsed.scheme == "http"
+                and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+                and settings.app_env in {"local", "test"}
+            )
+        )
         or not parsed.hostname
         or parsed.username
         or parsed.password
@@ -61,6 +66,9 @@ def checkout_snapshot(order: PaymentOrder) -> CheckoutOrder:
         order.currency,
         order.callback_url,
         order.created_at,
+        buyer_id=order.buyer_id,
+        buyer_email=getattr(order, "checkout_buyer_email", None),
+        checkout_id=order.provider_checkout_id,
     )
 
 
@@ -81,6 +89,10 @@ async def find_order(session: AsyncSession, order_id: str, actor: User, *, buyer
 async def update_checkout(
     session: AsyncSession, order: PaymentOrder, gateway: PaymentGateway, *, create=False
 ):
+    if order.provider != "stripe":
+        raise HTTPException(409, "Legacy payment provider is disabled")
+    buyer = await session.get(User, order.buyer_id)
+    order.checkout_buyer_email = buyer.email
     try:
         result = (
             await gateway.create_checkout(checkout_snapshot(order))
@@ -149,6 +161,7 @@ async def create_order(
         select(PaymentOrder)
         .where(
             PaymentOrder.buyer_id == buyer.id,
+            PaymentOrder.provider == "stripe",
             PaymentOrder.product == product,
             PaymentOrder.vehicle_id == vehicle_id,
             PaymentOrder.state.in_(PENDING_STATES),
@@ -166,6 +179,7 @@ async def create_order(
         vehicle_id=vehicle_id,
         amount_cents=price,
         currency="BRL",
+        provider="stripe",
         environment="sandbox",
         state="created",
         callback_url=f"{base_url}/app/compras/{order_id}",

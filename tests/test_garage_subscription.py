@@ -314,11 +314,9 @@ async def test_additional_vehicle_can_acknowledge_and_dispute_without_subscripti
 
 
 async def test_refund_revokes_period_after_remote_subscription_deletion(client, db_session):
-    import httpx
-
-    from app.integrations.payments.asaas import AsaasGateway
     from app.modules.payments.events import process_payment_event
-    from tests.test_payment_benefits import add_event
+    from app.modules.payments.gateway import ProviderPayment
+    from tests.test_payment_benefits import FinancialGateway, add_event
 
     auth_headers(client)
     user = await db_session.scalar(select(User).where(User.email == "driver@example.com"))
@@ -326,27 +324,18 @@ async def test_refund_revokes_period_after_remote_subscription_deletion(client, 
     period = await add_subscription_period(
         db_session, user.id, now - timedelta(days=1), now + timedelta(days=30)
     )
-
-    def respond(request):
-        if "/payments/" in request.url.path:
-            return httpx.Response(
-                200,
-                json={
-                    "id": "pay_subscription",
-                    "status": "REFUNDED",
-                    "value": 49,
-                    "customer": "cus_1",
-                    "subscription": "sub_1",
-                    "externalReference": "subscription-order",
-                },
-            )
-        if "/customers/" in request.url.path:
-            return httpx.Response(
-                200, json={"id": "cus_1", "cpfCnpj": user.cpf, "email": user.email}
-            )
-        return httpx.Response(404)
-
-    gateway = AsaasGateway(api_key="test", transport=httpx.MockTransport(respond))
+    # A known receipt must be revocable even when auxiliary remote resources disappeared.
+    gateway = FinancialGateway(
+        ProviderPayment(
+            id="pay_subscription",
+            state="REFUNDED",
+            order_reference="subscription-order",
+            amount_cents=4900,
+            currency="BRL",
+            customer_id="deleted-customer",
+            subscription_id="sub_1",
+        )
+    )
     event = await add_event(db_session, payment_id="pay_subscription", kind="PAYMENT_REFUNDED")
     await process_payment_event(db_session, event.id, gateway, now)
     assert period.revoked_at is not None

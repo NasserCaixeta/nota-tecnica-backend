@@ -13,8 +13,10 @@ def test_payment_config_exposes_explicit_test_prices_without_credentials(client,
     monkeypatch.setenv("PAYMENTS_HISTORY_PRICE_CENTS", "1900")
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
-    monkeypatch.setenv("ASAAS_API_KEY", "sandbox-only-secret")
-    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", "separate-webhook-secret-at-least-32-characters")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_synthetic")
+    monkeypatch.setenv(
+        "STRIPE_WEBHOOK_SECRET", "whsec_separate-webhook-secret-at-least-32-characters"
+    )
     get_settings.cache_clear()
     response = client.get("/api/v1/payments/config")
     assert response.status_code == 200
@@ -26,7 +28,7 @@ def test_payment_config_exposes_explicit_test_prices_without_credentials(client,
     assert body["garage_total_limit"] == 5
     assert body["environment"] == "sandbox"
     assert "secret" not in response.text
-    monkeypatch.setenv("ASAAS_API_KEY", "")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "")
     get_settings.cache_clear()
     assert client.get("/api/v1/payments/config").json()["enabled"] is False
     get_settings.cache_clear()

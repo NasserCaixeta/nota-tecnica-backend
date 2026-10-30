@@ -12,6 +12,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         populate_by_name=True,
+        hide_input_in_errors=True,
     )
 
     app_name: str = Field(default="Nota Tecnica API", alias="APP_NAME")
@@ -47,10 +48,8 @@ class Settings(BaseSettings):
         default=None, gt=0, alias="PAYMENTS_SUBSCRIPTION_PRICE_CENTS"
     )
     payments_callback_base_url: str = Field(default="", alias="PAYMENTS_CALLBACK_BASE_URL")
-    asaas_api_key: SecretStr = Field(default=SecretStr(""), alias="ASAAS_API_KEY")
-
-    asaas_webhook_token: SecretStr = Field(default=SecretStr(""), alias="ASAAS_WEBHOOK_TOKEN")
-    asaas_event_timezone: str = Field(default="", alias="ASAAS_EVENT_TIMEZONE")
+    stripe_secret_key: SecretStr = Field(default=SecretStr(""), alias="STRIPE_SECRET_KEY")
+    stripe_webhook_secret: SecretStr = Field(default=SecretStr(""), alias="STRIPE_WEBHOOK_SECRET")
 
     smtp_enabled: bool = Field(default=False, alias="SMTP_ENABLED")
     smtp_capture_only: bool = Field(default=True, alias="SMTP_CAPTURE_ONLY")
@@ -99,6 +98,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_pilot(self):
+        from app.integrations.payments.stripe import test_secret
+
+        key = self.stripe_secret_key.get_secret_value()
+        if key and not test_secret(key):
+            raise ValueError("Only a Stripe test secret key is accepted")
         if self.app_env not in {"pilot", "production"}:
             return self
         keys = [

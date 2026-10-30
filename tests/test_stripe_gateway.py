@@ -186,7 +186,7 @@ async def test_one_off_payment_uses_canonical_capture_time_and_customer_owner():
         api_key="sk_test_private", transport=httpx.MockTransport(respond)
     ).fetch_payment("pi_one")
     assert result.id == "pi_one" and result.customer_user_reference == "1"
-    assert result.customer_email == "driver@example.com" and result.customer_cpf is None
+    assert result.customer_email == "driver@example.com"
     assert result.confirmed_at == datetime.fromtimestamp(int(NOW.timestamp()), UTC)
     assert result.state == "CONFIRMED" and result.amount_cents == 1900
 

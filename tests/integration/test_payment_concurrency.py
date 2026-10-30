@@ -1,6 +1,8 @@
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime
 
+import pytest
 from sqlalchemy import func, select
 
 from app.modules.payments.events import process_payment_event
@@ -16,7 +18,8 @@ from tests.integration.test_admin_concurrency import prepare_users
 from tests.test_payment_benefits import FinancialGateway
 
 
-async def test_simultaneous_payment_confirmations_create_one_benefit(pg_engine):
+@pytest.mark.parametrize("aliased", [False, True])
+async def test_simultaneous_payment_confirmations_create_one_benefit(pg_engine, aliased):
     factory = await prepare_users(pg_engine)
     async with factory() as session:
         vehicle = Vehicle(plate="ABC1D23")
@@ -38,18 +41,24 @@ async def test_simultaneous_payment_confirmations_create_one_benefit(pg_engine):
         )
         events = [
             PaymentEvent(
-                provider="asaas",
+                provider="stripe",
                 environment="sandbox",
                 event_id=f"evt_{i}",
                 event_type="PAYMENT_CONFIRMED",
-                provider_payment_id="pay_1",
+                provider_payment_id="pay_alias" if aliased and i else "pay_1",
             )
             for i in range(2)
         ]
         session.add_all(events)
         await session.commit()
         event_ids = [event.id for event in events]
-    gateway = FinancialGateway(
+
+    class CanonicalGateway(FinancialGateway):
+        async def fetch_payment(self, payment_id):
+            payment = await super().fetch_payment(payment_id)
+            return replace(payment, source_id=payment_id)
+
+    gateway = CanonicalGateway(
         ProviderPayment(
             id="pay_1",
             state="CONFIRMED",
@@ -57,7 +66,7 @@ async def test_simultaneous_payment_confirmations_create_one_benefit(pg_engine):
             amount_cents=1900,
             currency="BRL",
             customer_id="cus_1",
-            customer_cpf="93541134780",
+            customer_user_reference="3",
             customer_email="driver@example.com",
             confirmed_at=datetime(2026, 10, 1, 12, tzinfo=UTC),
         )
@@ -93,7 +102,10 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
     from app.modules.users.models import User
 
     monkeypatch.setenv("PAYMENTS_ENABLED", "true")
-    monkeypatch.setenv("ASAAS_WEBHOOK_TOKEN", "separate-webhook-secret-at-least-32-characters")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_synthetic")
+    monkeypatch.setenv(
+        "STRIPE_WEBHOOK_SECRET", "whsec_separate-webhook-secret-at-least-32-characters"
+    )
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
     get_settings.cache_clear()
@@ -120,7 +132,7 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
             )
         )
         event = PaymentEvent(
-            provider="asaas",
+            provider="stripe",
             environment="sandbox",
             event_id="evt_1",
             event_type="PAYMENT_CONFIRMED",
@@ -135,7 +147,7 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
 
         async def create_checkout(self, order):
             self.creations.append(order.id)
-            return CheckoutSession("unexpected", "https://sandbox.asaas.com/test")
+            return CheckoutSession("unexpected", "https://checkout.stripe.com/c/pay/cs_test_unused")
 
     gateway = Gateway(
         ProviderPayment(
@@ -145,7 +157,7 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
             amount_cents=4900,
             currency="BRL",
             customer_id="cus_1",
-            customer_cpf="93541134780",
+            customer_user_reference="3",
             customer_email="driver@example.com",
             confirmed_at=start,
             subscription_id="sub_1",

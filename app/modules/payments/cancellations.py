@@ -21,6 +21,11 @@ async def reconcile_cancellation(session: AsyncSession, order_id: str, gateway: 
     if cancellation is None or cancellation.status == "confirmed":
         return cancellation
     order = await session.get(PaymentOrder, order_id)
+    if order.provider != "stripe":
+        cancellation.status = "legacy_provider_disabled"
+        cancellation.next_attempt_at = None
+        await session.commit()
+        return cancellation
     try:
         confirmed = await gateway.cancel_subscription(order.provider_subscription_id)
     except (GatewayUnavailable, GatewayUncertainOutcome):
@@ -50,7 +55,11 @@ async def cancel_subscription(
     session: AsyncSession, buyer: User, order_id: str, gateway: PaymentGateway
 ):
     order = await find_order(session, order_id, buyer, buyer_only=True)
-    if order.product != "garage_monthly" or not order.provider_subscription_id:
+    if (
+        order.provider != "stripe"
+        or order.product != "garage_monthly"
+        or not order.provider_subscription_id
+    ):
         raise HTTPException(409, "No verified subscription is linked to this order")
     # Serialize creation of the durable request without holding a network call in
     # that transaction. Subsequent reconciliation locks the cancellation itself.
@@ -81,7 +90,9 @@ async def pending_cancellation_ids(session: AsyncSession):
         (
             await session.scalars(
                 select(SubscriptionCancellation.order_id)
+                .join(PaymentOrder, PaymentOrder.id == SubscriptionCancellation.order_id)
                 .where(
+                    PaymentOrder.provider == "stripe",
                     SubscriptionCancellation.status != "confirmed",
                     or_(
                         SubscriptionCancellation.next_attempt_at.is_(None),

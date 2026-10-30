@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from urllib.parse import quote
 
 from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +17,7 @@ async def pending_checkout_event_ids(session: AsyncSession):
             await session.scalars(
                 select(CheckoutEvent.id)
                 .where(
+                    CheckoutEvent.provider == "stripe",
                     CheckoutEvent.status.in_(("pending", "reconciliation_required")),
                     or_(
                         CheckoutEvent.next_attempt_at.is_(None),
@@ -40,6 +40,11 @@ async def process_checkout_event(session: AsyncSession, event_id: int):
     )
     if event is None or event.status == "processed":
         return
+    if event.provider != "stripe":
+        event.status = "ignored"
+        event.last_error = "legacy_provider_disabled"
+        await session.commit()
+        return
     event.attempts += 1
     conditions = [PaymentOrder.provider_checkout_id == event.provider_checkout_id]
     if event.order_reference:
@@ -48,7 +53,7 @@ async def process_checkout_event(session: AsyncSession, event_id: int):
         (
             await session.scalars(
                 select(PaymentOrder)
-                .where(or_(*conditions))
+                .where(PaymentOrder.provider == "stripe", or_(*conditions))
                 .with_for_update()
                 .execution_options(populate_existing=True)
             )
@@ -75,9 +80,7 @@ async def process_checkout_event(session: AsyncSession, event_id: int):
         )
     if order.provider_checkout_id is None:
         order.provider_checkout_id = event.provider_checkout_id
-        order.checkout_url = "https://sandbox.asaas.com/checkoutSession/show?id=" + quote(
-            event.provider_checkout_id, safe=""
-        )
+        # Recover identification, never invent a hosted URL or grant payment.
     previous = order.state
     if order.state in PENDING_STATES:
         paid_receipt = await session.scalar(

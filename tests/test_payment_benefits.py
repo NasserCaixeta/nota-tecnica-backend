@@ -49,7 +49,7 @@ async def prepare_payment(client, session, *, product="history_access"):
         amount_cents=1900,
         currency="BRL",
         customer_id="cus_1",
-        customer_cpf=buyer.cpf,
+        customer_user_reference=str(buyer.id),
         customer_email=buyer.email,
         confirmed_at=datetime(2026, 10, 1, 12, tzinfo=UTC),
         checkout_id="checkout_1",
@@ -61,7 +61,7 @@ async def add_event(session, *, event_id="evt_1", payment_id="pay_1", kind="PAYM
     from app.modules.payments.models import PaymentEvent
 
     event = PaymentEvent(
-        provider="asaas",
+        provider="stripe",
         environment="sandbox",
         event_id=event_id,
         event_type=kind,
@@ -95,7 +95,7 @@ async def test_duplicate_confirmations_grant_exact_720_hours_from_verified_time(
     [
         {"amount_cents": 1},
         {"currency": "USD"},
-        {"customer_cpf": "00000000000"},
+        {"customer_user_reference": "not-the-buyer"},
         {"customer_email": "other@example.com"},
         {"confirmed_at": None},
         {"confirmed_at": datetime(2026, 10, 1, 12)},

@@ -72,6 +72,7 @@ async def uncancelled_subscription_order(session: AsyncSession, user_id: int):
         select(PaymentOrder)
         .where(
             PaymentOrder.buyer_id == user_id,
+            PaymentOrder.provider == "stripe",
             PaymentOrder.product == "garage_monthly",
             PaymentOrder.provider_subscription_id.is_not(None),
             ~exists(

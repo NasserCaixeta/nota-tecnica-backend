@@ -26,7 +26,7 @@ from app.modules.vehicles.models import Vehicle
 
 def payment_config_read():
     settings = get_settings()
-    ready = bool(settings.payments_enabled and settings.asaas_api_key.get_secret_value())
+    ready = bool(settings.payments_enabled and settings.stripe_secret_key.get_secret_value())
     if ready:
         for product in PaymentProduct:
             try:

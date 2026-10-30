@@ -34,6 +34,7 @@ async def pending_payment_event_ids(
             await session.scalars(
                 select(PaymentEvent.id)
                 .where(
+                    PaymentEvent.provider == "stripe",
                     PaymentEvent.status.in_(("pending", "reconciliation_required")),
                     or_(
                         PaymentEvent.next_attempt_at.is_(None), PaymentEvent.next_attempt_at <= now
@@ -63,11 +64,11 @@ async def process_payment_event(
     )
     if event is None or event.status == "processed":
         return
-    if session.get_bind().dialect.name == "postgresql":
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(730044, hashtext(:payment_id))"),
-            {"payment_id": event.provider_payment_id},
-        )
+    if event.provider != "stripe":
+        event.status = "ignored"
+        event.last_error = "legacy_provider_disabled"
+        await session.commit()
+        return
     event.attempts += 1
     try:
         payment = await gateway.fetch_payment(event.provider_payment_id)
@@ -75,10 +76,17 @@ async def process_payment_event(
         defer(event, now, "provider_unavailable")
         await session.commit()
         return
-    if payment.id != event.provider_payment_id:
+    if event.provider_payment_id not in {payment.id, payment.source_id}:
         defer(event, now, "payment_identity_mismatch", reconciliation=True)
         await session.commit()
         return
+    if session.get_bind().dialect.name == "postgresql":
+        # Stripe charge/PaymentIntent/invoice events may name the same financial
+        # receipt through different source IDs. Serialize the canonical ID.
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(730044, hashtext(:payment_id))"),
+            {"payment_id": "stripe:" + payment.id},
+        )
     receipt = await session.scalar(
         select(VerifiedPayment).where(VerifiedPayment.provider_payment_id == payment.id)
     )
@@ -97,7 +105,7 @@ async def process_payment_event(
             (
                 await session.scalars(
                     select(PaymentOrder)
-                    .where(or_(*conditions))
+                    .where(PaymentOrder.provider == "stripe", or_(*conditions))
                     .with_for_update()
                     .execution_options(populate_existing=True)
                 )
@@ -132,7 +140,7 @@ async def process_payment_event(
         order.environment == "sandbox"
         and payment.amount_cents == order.amount_cents
         and payment.currency == order.currency
-        and payment.customer_cpf == buyer.cpf
+        and payment.customer_user_reference == str(buyer.id)
         and payment.customer_email is not None
         and payment.customer_email.casefold() == buyer.email.casefold()
         and (not payment.order_reference or payment.order_reference == order.id)

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.integrations.payments.asaas import AsaasGateway
+from app.integrations.payments.stripe import StripeGateway
 from app.modules.auth.dependencies import get_approved_participant, get_current_user
 from app.modules.payments.gateway import PaymentGateway
 from app.modules.payments.models import PaymentProduct
@@ -25,9 +25,9 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 
 def get_payment_gateway() -> PaymentGateway:
     settings = get_settings()
-    if not settings.payments_enabled or not settings.asaas_api_key.get_secret_value():
+    if not settings.payments_enabled or not settings.stripe_secret_key.get_secret_value():
         raise HTTPException(503, "Sandbox payment provider is not configured")
-    return AsaasGateway(api_key=settings.asaas_api_key.get_secret_value())
+    return StripeGateway(api_key=settings.stripe_secret_key.get_secret_value())
 
 
 Session = Annotated[AsyncSession, Depends(get_db)]

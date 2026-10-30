@@ -133,7 +133,7 @@ async def test_mid_migration_failure_rolls_back_schema_revision_and_existing_dat
         async with pg_engine.connect() as conn:
             assert (
                 await conn.scalar(text("SELECT version_num FROM alembic_version"))
-                == "20261021_0017"
+                == "20261030_0018"
             )
             assert (
                 await conn.scalar(
@@ -141,6 +141,63 @@ async def test_mid_migration_failure_rolls_back_schema_revision_and_existing_dat
                 )
                 == 1
             )
+        await asyncio.to_thread(command.check, config)
+    finally:
+        get_settings.cache_clear()
+
+
+async def test_stripe_upgrade_preserves_legacy_provider_and_defaults_new_orders_to_stripe(
+    pg_url, pg_engine, monkeypatch
+):
+    from app.modules.payments.models import PaymentOrder
+
+    monkeypatch.setenv("DATABASE_URL", pg_url)
+    get_settings.cache_clear()
+    config = Config("alembic.ini")
+    try:
+        await asyncio.to_thread(command.upgrade, config, "20261021_0017")
+        async with pg_engine.begin() as conn:
+            data = user_payload()
+            data.pop("password")
+            data.update(
+                password_hash="synthetic-unused",
+                cpf="52998224725",
+                birth_date=date(1990, 1, 20),
+                profile_type="CUSTOMER",
+            )
+            user_id = await insert_legacy_row(conn, "users", data)
+            await insert_legacy_row(
+                conn,
+                "payment_orders",
+                dict(
+                    id="legacy-order",
+                    buyer_id=user_id,
+                    product="garage_monthly",
+                    amount_cents=4900,
+                    currency="BRL",
+                    environment="sandbox",
+                    state="checkout_pending",
+                    callback_url="https://pilot.test",
+                ),
+            )
+        await asyncio.to_thread(command.upgrade, config, "head")
+        async with async_sessionmaker(pg_engine)() as session:
+            legacy = await session.get(PaymentOrder, "legacy-order")
+            assert legacy.provider == "asaas" and legacy.amount_cents == 4900
+            new = PaymentOrder(
+                id="stripe-order",
+                buyer_id=user_id,
+                product="garage_monthly",
+                amount_cents=4900,
+                currency="BRL",
+                environment="sandbox",
+                state="created",
+                callback_url="https://pilot.test",
+            )
+            session.add(new)
+            await session.commit()
+            await session.refresh(new)
+            assert new.provider == "stripe"
         await asyncio.to_thread(command.check, config)
     finally:
         get_settings.cache_clear()
