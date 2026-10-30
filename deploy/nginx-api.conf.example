@@ -1,0 +1,44 @@
+# Replace API_HOST with the dedicated hostname. Obtain its certificate using
+# a separate HTTP-only ACME vhost before enabling this HTTPS configuration.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name API_HOST;
+    access_log off;
+    error_log /dev/null crit;
+    location /.well-known/acme-challenge/ {
+        root /var/www/nota-tecnica-acme;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name API_HOST;
+    ssl_certificate /etc/letsencrypt/live/API_HOST/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/API_HOST/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    access_log off;
+    error_log /dev/null crit;
+    client_max_body_size 11m;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header Cache-Control "no-store" always;
+
+    location / {
+        proxy_pass http://127.0.0.1:18001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # Trust only this host proxy, never a client-supplied XFF chain.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+}

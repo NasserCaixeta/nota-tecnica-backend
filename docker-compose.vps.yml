@@ -1,0 +1,72 @@
+# Backend-only deployment. The host Nginx owns public HTTP/HTTPS.
+name: nota-tecnica-vps
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+x-runtime: &runtime
+  image: nota-tecnica-api:${NOTA_TECNICA_RELEASE:?Set the source commit in .env.vps}
+  build: .
+  env_file: .env.vps
+  environment:
+    APP_ENV: pilot
+    DEBUG: "false"
+    PAYMENTS_ENABLED: "false"
+    PAYMENTS_ENVIRONMENT: sandbox
+  restart: unless-stopped
+  logging: *logging
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nota_tecnica_pilot
+      POSTGRES_USER: nota_tecnica
+      POSTGRES_PASSWORD: ${PILOT_DB_PASSWORD:?Set a private database password}
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nota_tecnica -d nota_tecnica_pilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    logging: *logging
+  migrate:
+    <<: *runtime
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  api:
+    <<: *runtime
+    ports: ["127.0.0.1:18001:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/ready', timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+  worker:
+    <<: *runtime
+    command: ["celery", "-A", "app.integrations.queue.celery_app:celery_app", "worker", "--loglevel=WARNING", "--concurrency=2", "--without-gossip", "--without-mingle"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  beat:
+    <<: *runtime
+    command: ["celery", "-A", "app.integrations.queue.celery_app:celery_app", "beat", "--loglevel=WARNING", "--schedule=/tmp/celerybeat-schedule"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+volumes:
+  postgres:
+  redis:
