@@ -125,8 +125,12 @@ async def process_payment_event(
         )
     # A previously verified financial ID is a durable binding. A later contact
     # change cannot prevent a canonical refund from revoking its own benefit.
-    if receipt is not None and payment.state in REVERSED:
-        await audit_payment_state(session, receipt, payment.state, event.id, now)
+    # A canonical read can finish after another worker has recorded a refund.
+    # Reversal is terminal for this receipt: stale snapshots must never create
+    # its first benefit or put the order back into the paid state.
+    if receipt is not None and (payment.state in REVERSED or receipt.state in REVERSED):
+        state = receipt.state if receipt.state in REVERSED else payment.state
+        await audit_payment_state(session, receipt, state, event.id, now)
         await revoke_benefit(session, receipt, now, event.id)
         order.state = "refunded"
         event.status = "processed"

@@ -11,6 +11,7 @@ from app.modules.payments.models import (
     HistoryAccessGrant,
     PaymentEvent,
     PaymentOrder,
+    SubscriptionPeriod,
     VerifiedPayment,
 )
 from app.modules.vehicles.models import Vehicle
@@ -109,6 +110,7 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
     monkeypatch.setenv("PAYMENTS_SUBSCRIPTION_PRICE_CENTS", "4900")
     monkeypatch.setenv("PAYMENTS_CALLBACK_BASE_URL", "https://pilot.test")
     get_settings.cache_clear()
+
     factory = await prepare_users(pg_engine)
     now = datetime.now(UTC)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -184,3 +186,89 @@ async def test_checkout_racing_confirmation_cannot_create_second_subscription(
         assert await session.scalar(select(func.count()).select_from(PaymentOrder)) == 1
     assert gateway.creations == []
     get_settings.cache_clear()
+
+
+@pytest.mark.parametrize("product", ["history_access", "garage_monthly"])
+async def test_stale_confirmation_after_aliased_refund_cannot_create_first_benefit(
+    pg_engine, product
+):
+    factory = await prepare_users(pg_engine)
+    now = datetime(2026, 10, 27, tzinfo=UTC)
+    async with factory() as session:
+        vehicle = Vehicle(plate="ABC1D23")
+        session.add(vehicle)
+        await session.flush()
+        session.add(
+            PaymentOrder(
+                id="refund-race",
+                buyer_id=3,
+                product=product,
+                vehicle_id=vehicle.id if product == "history_access" else None,
+                amount_cents=1900,
+                currency="BRL",
+                environment="sandbox",
+                state="checkout_pending",
+                callback_url="https://pilot.test",
+                created_at=datetime(2026, 10, 1, tzinfo=UTC),
+            )
+        )
+        canonical = "in_race" if product == "garage_monthly" else "pi_race"
+        events = [
+            PaymentEvent(
+                provider="stripe",
+                environment="sandbox",
+                event_id=f"evt_race_{i}",
+                event_type="PAYMENT_CONFIRMED" if i == 0 else "PAYMENT_REFUNDED",
+                provider_payment_id=canonical if i == 0 else "ch_race",
+            )
+            for i in range(2)
+        ]
+        session.add_all(events)
+        await session.commit()
+        ids = [event.id for event in events]
+
+    snapshot = ProviderPayment(
+        id=canonical,
+        state="CONFIRMED",
+        order_reference="refund-race",
+        amount_cents=1900,
+        currency="BRL",
+        customer_id="cus_race",
+        customer_user_reference="3",
+        customer_email="driver@example.com",
+        confirmed_at=datetime(2026, 10, 1, 12, tzinfo=UTC),
+        subscription_id="sub_race" if product == "garage_monthly" else None,
+        period_starts_at=datetime(2026, 10, 1, tzinfo=UTC),
+        period_ends_at=datetime(2026, 11, 1, tzinfo=UTC),
+    )
+    confirmation_read = asyncio.Event()
+    refund_processed = asyncio.Event()
+
+    class RacingGateway:
+        async def fetch_payment(self, identity):
+            if identity == canonical:
+                confirmation_read.set()
+                await asyncio.wait_for(refund_processed.wait(), timeout=10)
+                return snapshot
+            return replace(snapshot, source_id="ch_race", state="REFUNDED")
+
+    async def confirm():
+        async with factory() as session:
+            await process_payment_event(session, ids[0], RacingGateway(), now)
+
+    async def refund():
+        await asyncio.wait_for(confirmation_read.wait(), timeout=10)
+        async with factory() as session:
+            await process_payment_event(session, ids[1], RacingGateway(), now)
+        refund_processed.set()
+
+    await asyncio.gather(confirm(), refund())
+    async with factory() as session:
+        assert await session.scalar(select(func.count()).select_from(HistoryAccessGrant)) == 0
+        assert await session.scalar(select(func.count()).select_from(SubscriptionPeriod)) == 0
+        assert (await session.get(PaymentOrder, "refund-race")).state == "refunded"
+        assert (await session.scalar(select(VerifiedPayment))).state == "REFUNDED"
+        assert list(await session.scalars(select(PaymentEvent.status))) == [
+            "processed",
+            "processed",
+        ]
