@@ -11,6 +11,9 @@ class CheckoutOrder:
     currency: str
     callback_url: str
     created_at: datetime
+    buyer_id: int | None = None
+    buyer_email: str | None = None
+    checkout_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,8 @@ class ProviderPayment:
     billing_type: str | None = None
     period_starts_at: datetime | None = None
     period_ends_at: datetime | None = None
+    customer_user_reference: str | None = None
+    source_id: str | None = None
 
 
 class GatewayUncertainOutcome(RuntimeError):
