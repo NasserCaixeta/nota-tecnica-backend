@@ -154,12 +154,7 @@ async def stripe_webhook(
         if not isinstance(payment_id, str) or len(payment_id) > 200:
             raise HTTPException(422, "Invalid payment identity")
         # Only authenticated success events can be the fallback confirmation time.
-        if kind not in {
-            "payment_intent.succeeded",
-            "invoice.paid",
-            "checkout.session.completed",
-            "checkout.session.async_payment_succeeded",
-        }:
+        if kind not in {"payment_intent.succeeded", "invoice.paid"}:
             when = None
             if internal != "PAYMENT_REFUNDED":
                 internal = "PAYMENT_PENDING"

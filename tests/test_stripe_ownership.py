@@ -30,3 +30,15 @@ async def test_legacy_payment_event_never_calls_stripe_or_grants_benefit(client,
     await process_payment_event(db_session, row.id, gateway, datetime(2026, 10, 27, tzinfo=UTC))
     assert gateway.calls == []
     assert await db_session.scalar(select(HistoryAccessGrant)) is None
+
+
+async def test_immediate_stripe_confirmation_respects_provider_second_precision(client, db_session):
+    from app.modules.payments.events import process_payment_event
+    from app.modules.payments.models import HistoryAccessGrant
+
+    order, gateway = await prepare_payment(client, db_session)
+    order.created_at = gateway.payment.confirmed_at.replace(microsecond=500000)
+    row = await add_event(db_session)
+    await db_session.commit()
+    await process_payment_event(db_session, row.id, gateway, datetime(2026, 10, 27, tzinfo=UTC))
+    assert await db_session.scalar(select(HistoryAccessGrant)) is not None

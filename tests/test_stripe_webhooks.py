@@ -94,3 +94,41 @@ async def test_broker_failure_does_not_lose_signed_invoice_event(
 
 async def test_legacy_asaas_webhook_has_been_removed(client, stripe_setup):
     assert client.post("/api/v1/payments/webhooks/asaas", json={}).status_code == 404
+
+
+async def test_checkout_timestamp_cannot_replace_missing_financial_confirmation(
+    client, db_session, stripe_setup
+):
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    from app.modules.payments.events import process_payment_event
+    from app.modules.payments.models import HistoryAccessGrant, PaymentEvent
+    from tests.test_payment_benefits import prepare_payment
+
+    order, gateway = await prepare_payment(client, db_session)
+    gateway.payment = replace(gateway.payment, confirmed_at=None)
+    completed = event(
+        event_id="evt_checkout",
+        resource_id="cs_test_one",
+        kind="checkout.session.completed",
+        mode="payment",
+        payment_status="paid",
+        payment_intent=gateway.payment.id,
+        client_reference_id=order.id,
+    )
+    assert stripe_post(client, completed).status_code == 200
+    pending = await db_session.scalar(
+        select(PaymentEvent).where(PaymentEvent.event_id == "evt_checkout")
+    )
+    await process_payment_event(db_session, pending.id, gateway, datetime.now(UTC))
+    assert await db_session.scalar(select(HistoryAccessGrant)) is None
+    financial = event(event_id="evt_financial", resource_id=gateway.payment.id)
+    financial["created"] = int(datetime(2026, 10, 1, 12, tzinfo=UTC).timestamp())
+    assert stripe_post(client, financial).status_code == 200
+    confirmed = await db_session.scalar(
+        select(PaymentEvent).where(PaymentEvent.event_id == "evt_financial")
+    )
+    await process_payment_event(db_session, confirmed.id, gateway, datetime.now(UTC))
+    grant = await db_session.scalar(select(HistoryAccessGrant))
+    assert grant.starts_at.replace(tzinfo=UTC) == datetime(2026, 10, 1, 12, tzinfo=UTC)

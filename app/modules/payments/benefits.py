@@ -23,7 +23,12 @@ def utc(value: datetime) -> datetime:
 
 
 def valid_confirmation(order: PaymentOrder, payment: ProviderPayment, now: datetime):
-    return aware(payment.confirmed_at) and utc(order.created_at) <= payment.confirmed_at <= now
+    # Stripe timestamps have second precision; local database creation has
+    # microseconds. An authenticated payment in the same second is valid.
+    created = utc(order.created_at)
+    if order.provider == "stripe":
+        created = created.replace(microsecond=0)
+    return aware(payment.confirmed_at) and created <= payment.confirmed_at <= now
 
 
 def valid_monthly_period(payment: ProviderPayment):
